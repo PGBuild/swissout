@@ -553,6 +553,11 @@ export default function SwissOut() {
     id: e.id, title: e.titre, category: e.categorie, location: e.ville,
     lat: e.latitude, lng: e.longitude, date: e.date_debut, time: e.heure,
     desc: e.description, tags: e.tags || [], color: "#7C3AED", img: "📅",
+    lien_billetterie: e.lien_billetterie || null,
+    prix: e.prix || null,
+    address: e.adresse || null,
+    instagram_url: e.instagram_url || null,
+    facebook_url: e.facebook_url || null,
   })) : EVENTS_RAW).map(e => ({
     ...e,
     km: userPos ? Math.round(getDistance(userPos.lat, userPos.lng, e.lat, e.lng)) : null,
@@ -617,6 +622,40 @@ export default function SwissOut() {
             {t.seeEvent}
           </button>
         </div>
+        {event.lien_billetterie && (
+          <div style={{ marginTop:8 }}>
+            <a href={event.lien_billetterie} target="_blank" rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                padding:"9px 14px", borderRadius:12, background:"rgba(48,209,88,0.1)",
+                border:"1px solid rgba(48,209,88,0.25)", color:"#30D158",
+                fontSize:12, fontWeight:700, textDecoration:"none", fontFamily:"'Syne',sans-serif" }}>
+              🎟 Acheter des billets
+            </a>
+          </div>
+        )}
+        {(event.instagram_url || event.facebook_url) && (
+          <div style={{ display:"flex", gap:8, marginTop:8 }} onClick={e => e.stopPropagation()}>
+            {event.instagram_url && (
+              <a href={event.instagram_url} target="_blank" rel="noopener noreferrer"
+                style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px",
+                  borderRadius:10, background:"var(--s2)", border:"1px solid var(--bd)",
+                  color:"var(--muted)", fontSize:11, fontWeight:600, textDecoration:"none" }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                Instagram
+              </a>
+            )}
+            {event.facebook_url && (
+              <a href={event.facebook_url} target="_blank" rel="noopener noreferrer"
+                style={{ display:"flex", alignItems:"center", gap:5, padding:"6px 12px",
+                  borderRadius:10, background:"var(--s2)", border:"1px solid var(--bd)",
+                  color:"var(--muted)", fontSize:11, fontWeight:600, textDecoration:"none" }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                Facebook
+              </a>
+            )}
+          </div>
+        )}
         <div className="part-row">
           <button className={`btn-part${participation[event.id] === "yes" ? " yes" : ""}`} onClick={e => toggleParticipation(event.id, "yes", e)}>
             {participation[event.id] === "yes" ? t.goThereActive : t.goThere}
@@ -898,7 +937,7 @@ export default function SwissOut() {
                 <div className="modal-handle" />
                 <span className="modal-emoji">{selected.img}</span>
                 <div className="modal-title">{selected.title}</div>
-                <div className="modal-loc">📍 {selected.location}</div>
+                <div className="modal-loc">📍 {selected.address ? `${selected.address}, ${selected.location}` : selected.location}</div>
                 <div className="modal-dt">🗓 {selected.date} · {selected.time}</div>
                 {selected.prix && (
                   <div style={{display:"inline-block",padding:"4px 14px",borderRadius:20,background:"rgba(48,209,88,0.1)",border:"1px solid rgba(48,209,88,0.2)",color:"#30D158",fontSize:13,fontWeight:700,marginBottom:8}}>
@@ -936,8 +975,44 @@ export default function SwissOut() {
                       background:"#30D158",color:"#fff",fontFamily:"'Syne',sans-serif",
                       fontSize:14,fontWeight:800,cursor:"pointer",letterSpacing:"0.3px",
                       textAlign:"center",textDecoration:"none",marginBottom:9,boxSizing:"border-box"}}>
-                    🎟 Billetterie →
+                    🎟 Acheter des billets →
                   </a>
+                )}
+                {(() => {
+                  const mapsQuery = encodeURIComponent([selected.address, selected.location, 'Suisse'].filter(Boolean).join(', '));
+                  return (
+                    <a href={`https://maps.apple.com/?q=${mapsQuery}`} target="_blank" rel="noopener noreferrer"
+                      style={{display:"block",width:"100%",padding:"13px",borderRadius:16,
+                        border:"1px solid var(--bd2)",background:"transparent",color:"var(--txt)",
+                        fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:700,
+                        textAlign:"center",textDecoration:"none",marginBottom:9,boxSizing:"border-box"}}>
+                      🗺 Voir sur Maps
+                    </a>
+                  );
+                })()}
+                {(selected.instagram_url || selected.facebook_url) && (
+                  <div style={{ display:"flex", gap:8, marginBottom:9 }}>
+                    {selected.instagram_url && (
+                      <a href={selected.instagram_url} target="_blank" rel="noopener noreferrer"
+                        style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7,
+                          padding:"12px", borderRadius:14, border:"1px solid var(--bd2)",
+                          background:"transparent", color:"var(--txt)",
+                          fontSize:13, fontWeight:700, textDecoration:"none", fontFamily:"'Syne',sans-serif" }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                        Instagram
+                      </a>
+                    )}
+                    {selected.facebook_url && (
+                      <a href={selected.facebook_url} target="_blank" rel="noopener noreferrer"
+                        style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7,
+                          padding:"12px", borderRadius:14, border:"1px solid var(--bd2)",
+                          background:"transparent", color:"var(--txt)",
+                          fontSize:13, fontWeight:700, textDecoration:"none", fontFamily:"'Syne',sans-serif" }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                        Facebook
+                      </a>
+                    )}
+                  </div>
                 )}
                 <button className="mbtn" style={{ background: selected.color }} onClick={() => toggleSave(selected.id)}>
                   {saved.includes(selected.id) ? t.removeSaved : t.addSaved}

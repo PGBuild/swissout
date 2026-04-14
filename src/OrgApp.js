@@ -584,6 +584,7 @@ function EventForm({ user, onSuccess }) {
     titre:"", categorie:"", ville:"", adresse:"",
     date_debut:"", heure:"", description:"",
     tags:"", lien_billetterie:"", prix:"",
+    instagram_url:"", facebook_url:"",
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -634,6 +635,8 @@ function EventForm({ user, onSuccess }) {
         tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
         lien_billetterie: form.lien_billetterie || null,
         prix: form.prix || null,
+        instagram_url: form.instagram_url || null,
+        facebook_url: form.facebook_url || null,
         statut: 'en_attente',
         auto_approve_at: autoApproveAt,
         organisateur_id: user?.id || null,
@@ -743,7 +746,7 @@ function EventForm({ user, onSuccess }) {
       </div>
 
       {/* BILLETTERIE */}
-      <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:18,padding:"20px 20px",marginBottom:20}}>
+      <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:18,padding:"20px 20px",marginBottom:14}}>
         <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:16}}>🎟️ Billetterie</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div>
@@ -753,6 +756,21 @@ function EventForm({ user, onSuccess }) {
           <div>
             <label style={labelStyle}>Prix</label>
             <input style={inputStyle("prix")} placeholder="Ex: Gratuit / 20 CHF" value={form.prix} onChange={e => set("prix", e.target.value)} />
+          </div>
+        </div>
+      </div>
+
+      {/* RÉSEAUX SOCIAUX */}
+      <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:18,padding:"20px 20px",marginBottom:20}}>
+        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:16}}>📱 Réseaux sociaux</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div>
+            <label style={labelStyle}>Instagram</label>
+            <input style={inputStyle("instagram_url")} placeholder="https://instagram.com/..." value={form.instagram_url} onChange={e => set("instagram_url", e.target.value)} />
+          </div>
+          <div>
+            <label style={labelStyle}>Facebook</label>
+            <input style={inputStyle("facebook_url")} placeholder="https://facebook.com/..." value={form.facebook_url} onChange={e => set("facebook_url", e.target.value)} />
           </div>
         </div>
       </div>
