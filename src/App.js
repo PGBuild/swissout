@@ -1,25 +1,953 @@
-import logo from './logo.svg';
-import './App.css';
+import { useState, useEffect } from "react";
+import { fetchEvenements, trackEvent } from './supabase';
 
-function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+// ── TRANSLATIONS ──
+const T = {
+  fr: {
+    tagline: "Découvre la Suisse autour de toi",
+    iAm: "Je suis...",
+    participant: "Participant",
+    participantSub: "Je cherche des soirées et événements",
+    organizer: "Organisateur",
+    organizerSub: "Je publie mes événements sur SwissOut",
+    yourName: "Comment tu t'appelles ?",
+    namePlaceholder: "Ton prénom...",
+    yourAge: "Ton âge",
+    yourGender: "Tu es...",
+    male: "Homme",
+    female: "Femme",
+    discover: "Découvrir les événements →",
+    chooseSpace: "Choisir un espace →",
+    continueWithout: "Continuer sans s'inscrire",
+    goOrg: "Accéder à l'espace organisateur →",
+    hello: "Bonjour",
+    rayon: "Rayon",
+    all: "Tout",
+    around: "Autour de toi",
+    events: "events",
+    event: "event",
+    nothingHere: "Rien par ici",
+    nothingHereSub: "Augmente le rayon ou change de catégorie.",
+    myEvents: "Mes events ♥",
+    savedEvents: "événement",
+    savedEventsSub: "sauvegardé",
+    emptyList: "Liste vide",
+    emptyListSub: "Explore et sauvegarde les events qui t'intéressent.",
+    save: "♡ Sauver",
+    saved: "♥ Sauvé",
+    seeEvent: "Voir l'event →",
+    goThere: "✓ J'y participe",
+    goThereActive: "✓ J'y vais !",
+    maybe: "~ Peut-être",
+    removeSaved: "♥ Retirer des sauvegardés",
+    addSaved: "♡ Sauvegarder cet événement",
+    close: "Fermer",
+    explore: "Explorer",
+    filter: "Filtre",
+    today: "Aujourd'hui",
+    thisWeek: "Semaine",
+    thisMonth: "Mois",
+    threeMonths: "3 mois",
+    allTime: "Tout",
+    orgSpace: "Espace Organisateur",
+    orgDesc: "Connecte-toi ou crée ton compte pour publier tes événements sur SwissOut.",
+    goOrgBtn: "Aller vers l'espace organisateur →",
+    backHome: "← Retour à l'accueil",
+    activateGps: "Activer la géolocalisation",
+    locating: "Localisation en cours...",
+    gpsActive: "Position GPS",
+    gpsError: "GPS non dispo · Moutier (fallback)",
+    retry: "Réessayer",
+  },
+  en: {
+    tagline: "Discover Switzerland around you",
+    iAm: "I am...",
+    participant: "Participant",
+    participantSub: "I'm looking for events & parties",
+    organizer: "Organizer",
+    organizerSub: "I publish my events on SwissOut",
+    yourName: "What's your name?",
+    namePlaceholder: "Your first name...",
+    yourAge: "Your age",
+    yourGender: "You are...",
+    male: "Male",
+    female: "Female",
+    discover: "Discover events →",
+    chooseSpace: "Choose a space →",
+    continueWithout: "Continue without signing up",
+    goOrg: "Go to organizer space →",
+    hello: "Hello",
+    rayon: "Radius",
+    all: "All",
+    around: "Around you",
+    events: "events",
+    event: "event",
+    nothingHere: "Nothing here",
+    nothingHereSub: "Increase the radius or change category.",
+    myEvents: "My events ♥",
+    savedEvents: "event",
+    savedEventsSub: "saved",
+    emptyList: "Empty list",
+    emptyListSub: "Explore and save events you're interested in.",
+    save: "♡ Save",
+    saved: "♥ Saved",
+    seeEvent: "See event →",
+    goThere: "✓ I'll attend",
+    goThereActive: "✓ I'm going!",
+    maybe: "~ Maybe",
+    removeSaved: "♥ Remove from saved",
+    addSaved: "♡ Save this event",
+    close: "Close",
+    explore: "Explore",
+    filter: "Filter",
+    today: "Today",
+    thisWeek: "Week",
+    thisMonth: "Month",
+    threeMonths: "3 months",
+    allTime: "All",
+    orgSpace: "Organizer Space",
+    orgDesc: "Login or create an account to publish your events on SwissOut.",
+    goOrgBtn: "Go to organizer space →",
+    backHome: "← Back to home",
+    activateGps: "Enable location",
+    locating: "Locating...",
+    gpsActive: "GPS active",
+    gpsError: "GPS unavailable · Moutier (fallback)",
+    retry: "Retry",
+  },
+  de: {
+    tagline: "Entdecke die Schweiz um dich herum",
+    iAm: "Ich bin...",
+    participant: "Teilnehmer",
+    participantSub: "Ich suche Events und Partys",
+    organizer: "Veranstalter",
+    organizerSub: "Ich veröffentliche Events auf SwissOut",
+    yourName: "Wie heisst du?",
+    namePlaceholder: "Dein Vorname...",
+    yourAge: "Dein Alter",
+    yourGender: "Du bist...",
+    male: "Mann",
+    female: "Frau",
+    discover: "Events entdecken →",
+    chooseSpace: "Bereich wählen →",
+    continueWithout: "Ohne Registrierung fortfahren",
+    goOrg: "Zum Veranstalterbereich →",
+    hello: "Hallo",
+    rayon: "Radius",
+    all: "Alle",
+    around: "In deiner Nähe",
+    events: "Events",
+    event: "Event",
+    nothingHere: "Nichts in der Nähe",
+    nothingHereSub: "Radius erhöhen oder Kategorie wechseln.",
+    myEvents: "Meine Events ♥",
+    savedEvents: "Event",
+    savedEventsSub: "gespeichert",
+    emptyList: "Liste leer",
+    emptyListSub: "Entdecke und speichere interessante Events.",
+    save: "♡ Speichern",
+    saved: "♥ Gespeichert",
+    seeEvent: "Event ansehen →",
+    goThere: "✓ Ich nehme teil",
+    goThereActive: "✓ Ich gehe hin!",
+    maybe: "~ Vielleicht",
+    removeSaved: "♥ Aus Gespeicherten entfernen",
+    addSaved: "♡ Event speichern",
+    close: "Schliessen",
+    explore: "Erkunden",
+    filter: "Filter",
+    today: "Heute",
+    thisWeek: "Woche",
+    thisMonth: "Monat",
+    threeMonths: "3 Monate",
+    allTime: "Alle",
+    orgSpace: "Veranstalterbereich",
+    orgDesc: "Melde dich an oder erstelle ein Konto um Events zu veröffentlichen.",
+    goOrgBtn: "Zum Veranstalterbereich →",
+    backHome: "← Zurück",
+    activateGps: "Standort aktivieren",
+    locating: "Standort wird ermittelt...",
+    gpsActive: "GPS aktiv",
+    gpsError: "GPS nicht verfügbar · Moutier",
+    retry: "Erneut versuchen",
+  },
+  it: {
+    tagline: "Scopri la Svizzera intorno a te",
+    iAm: "Sono...",
+    participant: "Partecipante",
+    participantSub: "Cerco eventi e serate",
+    organizer: "Organizzatore",
+    organizerSub: "Pubblico i miei eventi su SwissOut",
+    yourName: "Come ti chiami?",
+    namePlaceholder: "Il tuo nome...",
+    yourAge: "La tua età",
+    yourGender: "Sei...",
+    male: "Uomo",
+    female: "Donna",
+    discover: "Scopri gli eventi →",
+    chooseSpace: "Scegli uno spazio →",
+    continueWithout: "Continua senza registrarti",
+    goOrg: "Vai allo spazio organizzatori →",
+    hello: "Ciao",
+    rayon: "Raggio",
+    all: "Tutto",
+    around: "Intorno a te",
+    events: "eventi",
+    event: "evento",
+    nothingHere: "Niente qui vicino",
+    nothingHereSub: "Aumenta il raggio o cambia categoria.",
+    myEvents: "I miei eventi ♥",
+    savedEvents: "evento",
+    savedEventsSub: "salvato",
+    emptyList: "Lista vuota",
+    emptyListSub: "Esplora e salva gli eventi che ti interessano.",
+    save: "♡ Salva",
+    saved: "♥ Salvato",
+    seeEvent: "Vedi evento →",
+    goThere: "✓ Partecipo",
+    goThereActive: "✓ Ci vado!",
+    maybe: "~ Forse",
+    removeSaved: "♥ Rimuovi dai salvati",
+    addSaved: "♡ Salva questo evento",
+    close: "Chiudi",
+    explore: "Esplora",
+    filter: "Filtro",
+    today: "Oggi",
+    thisWeek: "Settimana",
+    thisMonth: "Mese",
+    threeMonths: "3 mesi",
+    allTime: "Tutto",
+    orgSpace: "Spazio Organizzatori",
+    orgDesc: "Accedi o crea un account per pubblicare i tuoi eventi su SwissOut.",
+    goOrgBtn: "Vai allo spazio organizzatori →",
+    backHome: "← Torna alla home",
+    activateGps: "Attiva posizione",
+    locating: "Localizzazione...",
+    gpsActive: "GPS attivo",
+    gpsError: "GPS non disponibile · Moutier",
+    retry: "Riprova",
+  },
+};
+
+const LANGS = [
+  { code: "fr", flag: "", label: "FR" },
+  { code: "en", flag: "", label: "EN" },
+  { code: "de", flag: "", label: "DE" },
+  { code: "it", flag: "", label: "IT" },
+];
+
+const CATEGORIES = (t) => [
+  { id: "all",         label: t.all,        emoji: "●" },
+  { id: "soirees",     label: "Soirées",    emoji: "●" },
+  { id: "street-food", label: "Street Food",emoji: "●" },
+  { id: "villages",    label: "Fêtes",      emoji: "●" },
+  { id: "concerts",    label: "Concerts",   emoji: "●" },
+  { id: "sports",      label: "Sports",     emoji: "●" },
+  { id: "culture",     label: "Culture",    emoji: "●" },
+];
+
+const EVENTS_RAW = [
+  { id:1, title:"Balélec Festival", category:"concerts", location:"Lausanne", lat:46.5197, lng:6.5666, date:"2025-05-11", time:"18:00", desc:"Le plus grand festival étudiant de Suisse sur le campus de l'EPFL.", tags:["Live Music","Outdoor","Étudiant"], color:"#7C3AED", img:"🎸" },
+  { id:2, title:"Zürich Street Food Festival", category:"street-food", location:"Zurich", lat:47.3769, lng:8.5417, date:"2025-05-12", time:"11:00", desc:"50 food trucks du monde entier au bord du lac.", tags:["Food","Famille","Lac"], color:"#FF9F0A", img:"🍜" },
+  { id:3, title:"Fête de Neuchâtel", category:"villages", location:"Neuchâtel", lat:46.9900, lng:6.9293, date:"2025-05-12", time:"14:00", desc:"Traditions, musiques folkloriques et fanfares.", tags:["Tradition","Famille","Gratuit"], color:"#30D158", img:"🏔️" },
+  { id:4, title:"Club Unique — Afterwork", category:"soirees", location:"Genève", lat:46.2044, lng:6.1432, date:"2025-05-11", time:"22:00", desc:"House & Techno avec les meilleurs DJs locaux.", tags:["Techno","18+","Terrasse"], color:"#7C3AED", img:"🌙" },
+  { id:5, title:"Expo Giacometti", category:"culture", location:"Berne", lat:46.9481, lng:7.4474, date:"2025-05-13", time:"10:00", desc:"Rétrospective inédite au Kunstmuseum.", tags:["Art","Musée","Famille"], color:"#0A84FF", img:"🎨" },
+  { id:6, title:"Trail des Alpes", category:"sports", location:"Villars-sur-Ollon", lat:46.3000, lng:7.0500, date:"2025-05-18", time:"08:00", desc:"Course trail en montagne, 3 distances disponibles.", tags:["Trail","Montagne","Inscription"], color:"#64D2FF", img:"⛷️" },
+  { id:7, title:"Marché de Bâle", category:"street-food", location:"Bâle", lat:47.5596, lng:7.5886, date:"2025-05-17", time:"09:00", desc:"Producteurs locaux et fromages AOP.", tags:["Local","Bio","Marché"], color:"#FF9F0A", img:"🧀" },
+  { id:8, title:"Fête du Lac — Lugano", category:"villages", location:"Lugano", lat:46.0037, lng:8.9511, date:"2025-06-01", time:"16:00", desc:"Feu d'artifice et animations en bord de lac.", tags:["Lac","Famille","Feux d'artifice"], color:"#30D158", img:"🎆" },
+];
+
+function getDistance(lat1,lng1,lat2,lng2){
+  const R=6371, dLat=((lat2-lat1)*Math.PI)/180, dLng=((lng2-lng1)*Math.PI)/180;
+  const a=Math.sin(dLat/2)**2+Math.cos((lat1*Math.PI)/180)*Math.cos((lat2*Math.PI)/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-export default App;
+async function reverseGeocode(lat,lng){
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=fr`);
+    const d=await r.json();
+    return d.address?.city||d.address?.town||d.address?.village||"Ma position";
+  }catch{ return "Ma position"; }
+}
+
+function isWithinPeriod(dateStr, period) {
+  if (period === "all") return true;
+  const now = new Date();
+  const eventDate = new Date(dateStr);
+  if (period === "today") {
+    return eventDate.toDateString() === now.toDateString();
+  }
+  const days = { "week": 7, "month": 30, "threemonths": 90 }[period];
+  const limit = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  return eventDate >= now && eventDate <= limit;
+}
+
+const makeStyles = (dark) => `
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+
+:root{
+  --accent: #7C3AED;
+  --accent-light: #9D5FF5;
+  --bg:     ${dark ? "#0A0A0C" : "#FFFFFF"};
+  --s1:     ${dark ? "#131315" : "#FFFFFF"};
+  --s2:     ${dark ? "#1A1A1E" : "#F0F0F0"};
+  --s3:     ${dark ? "#222226" : "#E8E8E8"};
+  --bd:     ${dark ? "#222226" : "#E0E0E0"};
+  --bd2:    ${dark ? "#2E2E34" : "#D0D0D0"};
+  --txt:    ${dark ? "#F0F0EB" : "#111111"};
+  --muted:  ${dark ? "#888"    : "#666"};
+  --faint:  ${dark ? "#444"    : "#999"};
+  --shadow: ${dark ? "rgba(0,0,0,0.5)" : "rgba(100,90,140,0.12)"};
+}
+
+body{background:var(--bg);color:var(--txt);font-family:'DM Sans',sans-serif;min-height:100vh;transition:background 0.35s,color 0.35s}
+.app{max-width:430px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;overflow-x:hidden;transition:background 0.35s}
+
+.header{padding:48px 22px 0;background:var(--bg);position:sticky;top:0;z-index:50;border-bottom:1px solid transparent;transition:background 0.35s,border-color 0.3s;}
+.header.scrolled{border-color:var(--bd)}
+.header-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.brand{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;letter-spacing:-0.5px;line-height:1}
+.brand em{color:var(--accent);font-style:normal}
+.tagline{font-size:11px;color:var(--faint);font-weight:400;letter-spacing:0.8px;text-transform:uppercase;margin-top:4px}
+.header-right{display:flex;align-items:center;gap:6px}
+
+.theme-toggle{width:36px;height:36px;border-radius:12px;background:var(--s1);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;transition:all 0.2s;flex-shrink:0;}
+.theme-toggle:hover{background:var(--s2);transform:scale(1.08)}
+
+/* LANG TOGGLE */
+.lang-toggle{position:relative}
+.lang-btn{min-width:36px;padding:0 8px;height:36px;border-radius:12px;background:var(--s1);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;font-weight:700;transition:all 0.2s;flex-shrink:0;font-family:'DM Sans',sans-serif;}
+.lang-btn:hover{background:var(--s2)}
+.lang-dropdown{position:absolute;top:44px;right:0;background:var(--s1);border:1px solid var(--bd2);border-radius:14px;overflow:hidden;z-index:999;min-width:100px;box-shadow:0 8px 32px rgba(0,0,0,0.3);}
+.lang-opt{display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:background 0.15s;}
+.lang-opt:hover{background:var(--s2)}
+.lang-opt.active{color:var(--accent);background:rgba(124,58,237,0.08)}
+
+.loc-pill{display:flex;align-items:center;gap:7px;background:var(--s1);border:1px solid var(--bd2);border-radius:22px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;max-width:120px;overflow:hidden;}
+.loc-pill:hover{background:var(--s2)}
+.loc-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.loc-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.loc-dot.gps{background:var(--accent);animation:pulse 2s infinite}
+.loc-dot.loading{background:#FF9F0A;animation:blink 0.7s infinite}
+.loc-dot.error{background:var(--faint)}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:0.6}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+
+.geo-banner{margin:0 22px 4px;padding:11px 14px;background:${dark?"rgba(124,58,237,0.1)":"rgba(124,58,237,0.06)"};border:1px solid ${dark?"rgba(124,58,237,0.25)":"rgba(124,58,237,0.2)"};border-radius:14px;font-size:12px;color:var(--accent-light);display:flex;align-items:center;gap:8px;cursor:pointer;transition:all 0.2s;font-weight:500;}
+.geo-banner.error{background:rgba(255,59,47,0.08);border-color:rgba(255,59,47,0.2);color:#FF3B2F}
+
+.radius-row{display:flex;align-items:center;gap:12px;padding:14px 22px}
+.radius-label{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;min-width:48px}
+.radius-track{flex:1;height:3px;background:var(--bd2);border-radius:2px;position:relative}
+.radius-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),#A78BFA);transition:width 0.08s}
+input[type=range]{position:absolute;inset:-10px 0;width:100%;opacity:0;cursor:pointer;height:24px}
+.radius-val{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap;min-width:54px;text-align:right;cursor:pointer;padding:4px 8px;border-radius:8px;border:1px solid transparent;transition:all 0.15s;}
+.radius-val:hover{background:var(--s2);border-color:var(--bd2)}
+.radius-input{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--accent);width:62px;text-align:center;padding:4px 8px;border-radius:8px;background:var(--s2);border:1px solid var(--accent);outline:none;-moz-appearance:textfield;}
+.radius-input::-webkit-inner-spin-button,.radius-input::-webkit-outer-spin-button{-webkit-appearance:none}
+
+.cats{display:flex;gap:7px;padding:2px 22px 10px;overflow-x:auto;scrollbar-width:none}
+.cats::-webkit-scrollbar{display:none}
+.cat{display:flex;align-items:center;gap:5px;padding:7px 13px;border-radius:20px;border:1px solid var(--bd);background:var(--s1);font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;transition:all 0.18s;color:var(--muted);}
+.cat:hover{background:var(--s2);color:var(--txt);border-color:var(--bd2)}
+.cat.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* TIME FILTER */
+.time-filters{display:flex;gap:6px;padding:0 22px 12px;overflow-x:auto;scrollbar-width:none}
+.time-filters::-webkit-scrollbar{display:none}
+.tfilter{padding:5px 12px;border-radius:20px;border:1px solid var(--bd);background:transparent;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer;transition:all 0.18s;color:var(--faint);font-family:'DM Sans',sans-serif;}
+.tfilter:hover{background:var(--s2);color:var(--txt)}
+.tfilter.active{background:rgba(124,58,237,0.15);border-color:var(--accent);color:var(--accent)}
+
+.hdivider{height:1px;background:var(--bd)}
+.sec-head{padding:18px 22px 10px;display:flex;justify-content:space-between;align-items:center}
+.sec-title{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;letter-spacing:-0.2px}
+.sec-count{font-size:11px;color:var(--faint);background:var(--s2);padding:3px 9px;border-radius:10px}
+
+.cards{padding:0 22px 130px;display:flex;flex-direction:column;gap:13px}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:22px;overflow:hidden;cursor:pointer;transition:transform 0.25s cubic-bezier(.34,1.56,.64,1),box-shadow 0.25s,border-color 0.2s,background 0.35s;animation:cardIn 0.4s cubic-bezier(.34,1.2,.64,1) both;}
+.card:hover{transform:translateY(-3px);border-color:var(--bd2);box-shadow:0 16px 48px var(--shadow)}
+.card:active{transform:scale(0.975)}
+@keyframes cardIn{from{opacity:0;transform:translateY(18px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.card-bar{height:3px}
+.card-inner{padding:16px 18px 18px}
+.card-row1{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:11px}
+.card-icon{width:50px;height:50px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;transition:transform 0.2s}
+.card:hover .card-icon{transform:scale(1.08) rotate(-3deg)}
+.card-right{text-align:right}
+.card-km{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--accent)}
+.card-datetime{font-size:11px;color:var(--faint);margin-top:3px}
+.card-title{font-family:'Syne',sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.4px;line-height:1.15;margin-bottom:5px}
+.card-loc{font-size:11px;color:var(--faint);margin-bottom:9px;display:flex;align-items:center;gap:3px;font-weight:500;letter-spacing:0.3px;text-transform:uppercase}
+.card-desc{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:13px}
+.tags{display:flex;gap:5px;flex-wrap:wrap}
+.tag{padding:3px 9px;border-radius:7px;font-size:10px;font-weight:700;background:var(--s2);color:var(--faint);letter-spacing:0.4px;text-transform:uppercase}
+.card-btns{display:flex;gap:8px;margin-top:13px;padding-top:13px;border-top:1px solid var(--bd)}
+.btn-save{flex:1;padding:10px;border-radius:12px;border:1px solid var(--bd2);background:transparent;color:var(--faint);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:5px;}
+.btn-save:hover{background:var(--s2);color:var(--txt)}
+.btn-save.saved{border-color:var(--accent);color:var(--accent);background:rgba(124,58,237,0.08)}
+.btn-go{flex:2;padding:10px;border-radius:12px;border:none;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;color:#fff;letter-spacing:0.3px;display:flex;align-items:center;justify-content:center;gap:5px;transition:all 0.2s;}
+.btn-go:hover{filter:brightness(1.15);transform:scale(1.02)}
+
+.empty{padding:70px 24px;text-align:center}
+.empty-icon{font-size:52px;margin-bottom:16px;animation:float 3s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.empty-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--faint);margin-bottom:8px}
+.empty-sub{font-size:13px;color:var(--faint);line-height:1.6}
+
+.bnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:${dark?"rgba(10,10,12,0.92)":"rgba(244,243,248,0.92)"};backdrop-filter:blur(24px);border-top:1px solid var(--bd);display:flex;padding:10px 0 30px;z-index:100;transition:background 0.35s,border-color 0.35s;}
+.nav-it{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:4px 0;transition:all 0.2s;position:relative}
+.nav-icon{font-size:21px;transition:transform 0.2s}
+.nav-it:hover .nav-icon{transform:scale(1.15)}
+.nav-it.active .nav-icon{transform:scale(1.05)}
+.nav-lbl{font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--faint);text-transform:uppercase}
+.nav-it.active .nav-lbl{color:var(--accent)}
+.nav-badge{position:absolute;top:0;right:22%;background:var(--accent);color:#fff;font-size:9px;font-weight:800;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;animation:pop 0.3s cubic-bezier(.34,1.56,.64,1)}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+
+.part-row{display:flex;gap:8px;margin-top:13px;padding-top:13px;border-top:1px solid var(--bd)}
+.btn-part{flex:1;padding:10px 8px;border-radius:12px;border:1px solid var(--bd2);background:transparent;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:5px;color:var(--faint);letter-spacing:0.2px;}
+.btn-part:hover{background:var(--s2);color:var(--txt)}
+.btn-part.yes{background:rgba(48,209,88,0.1);border-color:rgba(48,209,88,0.3);color:#30D158}
+.btn-part.maybe{background:rgba(255,159,10,0.1);border-color:rgba(255,159,10,0.3);color:#FF9F0A}
+
+.mbackdrop{position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(12px);z-index:200;display:flex;align-items:flex-end;animation:fadein 0.2s ease}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.modal{width:100%;max-width:430px;margin:0 auto;background:var(--s1);border-radius:28px 28px 0 0;padding:0 0 48px;overflow:hidden;animation:slideup 0.35s cubic-bezier(.34,1.4,.64,1);border:1px solid var(--bd2);border-bottom:none;transition:background 0.35s}
+@keyframes slideup{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-hero{padding:28px 24px 20px;text-align:center}
+.modal-handle{width:40px;height:4px;background:var(--bd2);border-radius:2px;margin:0 auto 24px}
+.modal-emoji{font-size:72px;margin-bottom:14px;display:block;animation:float 3s ease-in-out infinite}
+.modal-title{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;letter-spacing:-0.6px;margin-bottom:6px}
+.modal-loc{font-size:12px;color:var(--faint);margin-bottom:3px;letter-spacing:0.3px;text-transform:uppercase;font-weight:600}
+.modal-dt{font-size:13px;color:var(--muted);margin-bottom:16px}
+.modal-km-badge{display:inline-block;padding:5px 14px;border-radius:20px;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:#fff;margin-bottom:20px}
+.modal-desc{font-size:14px;color:var(--muted);line-height:1.65;margin-bottom:18px;padding:0 24px}
+.modal-tags{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-bottom:28px;padding:0 24px}
+.modal-tag{padding:5px 13px;border-radius:10px;background:var(--s2);font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px}
+.modal-actions{padding:0 24px;display:flex;flex-direction:column;gap:9px}
+.mbtn{width:100%;padding:15px;border-radius:16px;border:none;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;cursor:pointer;color:#fff;letter-spacing:0.3px;transition:all 0.2s}
+.mbtn:hover{filter:brightness(1.12);transform:scale(1.01)}
+.mbtn-close{width:100%;padding:13px;border-radius:16px;border:1px solid var(--bd2);background:transparent;color:var(--faint);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.2s}
+.mbtn-close:hover{background:var(--s2);color:var(--muted)}
+
+.page-hero{padding:48px 22px 20px}
+.page-title{font-family:'Syne',sans-serif;font-weight:800;font-size:34px;letter-spacing:-1px}
+.page-sub{font-size:13px;color:var(--faint);margin-top:5px}
+
+.card:nth-child(1){animation-delay:0s}.card:nth-child(2){animation-delay:.05s}
+.card:nth-child(3){animation-delay:.1s}.card:nth-child(4){animation-delay:.15s}
+.card:nth-child(5){animation-delay:.2s}.card:nth-child(6){animation-delay:.25s}
+.card:nth-child(7){animation-delay:.3s}.card:nth-child(8){animation-delay:.35s}
+
+/* ONBOARDING */
+.onboard{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;padding:40px 32px;animation:obIn 0.5s ease;overflow-y:auto;}
+@keyframes obIn{from{opacity:0}to{opacity:1}}
+.ob-exit{animation:obOut 0.5s ease forwards}
+@keyframes obOut{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(1.04)}}
+.ob-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:52px;letter-spacing:-2px;line-height:1;margin-bottom:10px;animation:logoIn 0.7s cubic-bezier(.34,1.4,.64,1) 0.2s both;}
+@keyframes logoIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.ob-logo em{color:#7C3AED;font-style:normal}
+.ob-tagline{font-size:13px;color:#444;letter-spacing:1px;text-transform:uppercase;font-weight:500;margin-bottom:32px;animation:logoIn 0.7s cubic-bezier(.34,1.4,.64,1) 0.35s both;}
+.ob-form{width:100%;max-width:320px;animation:logoIn 0.7s cubic-bezier(.34,1.4,.64,1) 0.5s both;display:flex;flex-direction:column;gap:12px;}
+.ob-label{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-family:'Syne',sans-serif;margin-bottom:2px;}
+.ob-input{width:100%;padding:16px 20px;border-radius:16px;background:var(--s2);border:1px solid var(--bd);font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--txt);outline:none;letter-spacing:-0.3px;transition:border-color 0.2s;-webkit-appearance:none;}
+.ob-input::placeholder{color:var(--faint)}
+.ob-input:focus{border-color:#7C3AED}
+.ob-btn{width:100%;padding:16px;border-radius:16px;border:none;background:#7C3AED;color:#fff;font-family:'Syne',sans-serif;font-size:16px;font-weight:800;cursor:pointer;letter-spacing:0.3px;transition:all 0.2s;margin-top:4px;opacity:0.35;}
+.ob-btn.ready{opacity:1}
+.ob-btn.ready:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.ob-btn:active{transform:scale(0.97)}
+.ob-skip{margin-top:16px;font-size:12px;color:var(--faint);cursor:pointer;transition:color 0.2s;text-align:center;animation:logoIn 0.7s cubic-bezier(.34,1.4,.64,1) 0.7s both;}
+.ob-skip:hover{color:var(--muted)}
+.ob-role{display:flex;gap:10px;width:100%;margin-bottom:4px}
+.ob-role-btn{flex:1;padding:18px 12px;border-radius:16px;border:1px solid var(--bd);background:var(--s2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:8px;}
+.ob-role-btn:hover{border-color:var(--bd2);color:var(--txt);transform:translateY(-2px)}
+.ob-role-btn.selected{border-color:#7C3AED;background:rgba(124,58,237,0.1);color:#fff;transform:translateY(-2px)}
+.ob-role-btn.selected-org{border-color:#FF9F0A;background:rgba(255,159,10,0.08);color:#fff;transform:translateY(-2px)}
+.ob-role-icon{font-size:32px}
+.ob-role-title{font-size:13px;font-weight:800;letter-spacing:-0.2px}
+.ob-role-sub{font-size:10px;font-weight:400;opacity:0.6;text-align:center;line-height:1.4}
+.ob-gender{display:flex;gap:8px;width:100%}
+.ob-gender-btn{flex:1;padding:12px;border-radius:14px;border:1px solid var(--bd);background:var(--s2);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:5px;}
+.ob-gender-btn:hover{border-color:var(--bd2);color:var(--txt)}
+.ob-gender-btn.selected{border-color:#7C3AED;background:rgba(124,58,237,0.1);color:#7C3AED}
+.ob-gender-btn .g-icon{font-size:22px}
+.ob-gender-btn .g-label{font-size:11px;letter-spacing:0.5px;text-transform:uppercase}
+
+/* LANG ON ONBOARD */
+.ob-langs{display:flex;gap:6px;justify-content:center;margin-bottom:8px}
+.ob-lang-btn{padding:5px 10px;border-radius:8px;border:1px solid #ddd;background:#f5f5f5;font-size:11px;font-weight:700;color:#666;cursor:pointer;transition:all 0.15s;font-family:'DM Sans',sans-serif;}
+.ob-lang-btn:hover{border-color:#bbb;color:#333;background:#eee}
+.ob-lang-btn.active{border-color:#7C3AED;color:#7C3AED;background:rgba(124,58,237,0.08)}
+`;
+
+export default function SwissOut() {
+  const [lang, setLang]             = useState("fr");
+  const [showLangDrop, setShowLangDrop] = useState(false);
+  const t = T[lang];
+
+  const [userName, setUserName]     = useState("");
+  const [nameInput, setNameInput]   = useState("");
+  const [gender, setGender]         = useState("");
+  const [age, setAge]               = useState("");
+  const [obExit, setObExit]         = useState(false);
+  const [role, setRole]             = useState("");
+  const [dark, setDark]             = useState(false);
+  const [cat, setCat]               = useState("all");
+  const [timePeriod, setTimePeriod] = useState("all");
+  const [radius, setRadius]         = useState(20);
+  const [editingRadius, setEditingRadius] = useState(false);
+  const [radiusDraft, setRadiusDraft]     = useState("20");
+  const [saved, setSaved]           = useState([]);
+  const [participation, setParticipation] = useState({});
+  const [selected, setSelected]     = useState(null);
+  const [tab, setTab]               = useState("explore");
+  const [userPos, setUserPos]       = useState(null);
+  const [cityName, setCityName]     = useState("...");
+  const [geoStatus, setGeoStatus]   = useState("idle");
+  const [scrolled, setScrolled]     = useState(false);
+  const [eventsFromDB, setEventsFromDB] = useState([]);
+
+  const handleOnboard = () => {
+    const n = nameInput.trim();
+    if (!n || !gender || !age) return;
+    setObExit(true);
+    setTimeout(() => setUserName(n), 480);
+  };
+
+  const confirmRadius = (val) => {
+    const n = Math.min(150, Math.max(1, parseInt(val) || 1));
+    setRadius(n); setRadiusDraft(String(n)); setEditingRadius(false);
+  };
+
+  useEffect(() => { requestGeo(); }, []);
+  useEffect(() => {
+    fetchEvenements().then(data => { if (data.length > 0) setEventsFromDB(data); });
+  }, []);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const requestGeo = () => {
+    if (!navigator.geolocation) { setGeoStatus("error"); setCityName("N/A"); return; }
+    setGeoStatus("loading"); setCityName("...");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setUserPos({ lat, lng }); setGeoStatus("success");
+        const city = await reverseGeocode(lat, lng); setCityName(city);
+      },
+      () => { setGeoStatus("error"); setCityName("Moutier"); setUserPos({ lat:47.2785, lng:7.3714 }); },
+      { timeout:8000, enableHighAccuracy:true }
+    );
+  };
+
+  const CATS = CATEGORIES(t);
+
+  const eventsWithDist = (eventsFromDB.length > 0 ? eventsFromDB.map(e => ({
+    id: e.id, title: e.titre, category: e.categorie, location: e.ville,
+    lat: e.latitude, lng: e.longitude, date: e.date_debut, time: e.heure,
+    desc: e.description, tags: e.tags || [], color: "#7C3AED", img: "📅",
+  })) : EVENTS_RAW).map(e => ({
+    ...e,
+    km: userPos ? Math.round(getDistance(userPos.lat, userPos.lng, e.lat, e.lng)) : null,
+  }));
+
+  const filtered = eventsWithDist
+    .filter(e =>
+      (cat === "all" || e.category === cat) &&
+      (e.km === null || e.km <= radius) &&
+      isWithinPeriod(e.date, timePeriod)
+    )
+    .sort((a, b) => (a.km ?? 999) - (b.km ?? 999));
+
+  const savedEvents = eventsWithDist.filter(e => saved.includes(e.id));
+
+  const toggleParticipation = (id, status, ev) => {
+    ev?.stopPropagation();
+    setParticipation(p => {
+      if (p[id] === status) { const n = {...p}; delete n[id]; return n; }
+      return { ...p, [id]: status };
+    });
+    trackEvent(id, 'participation');
+  };
+
+  const toggleSave = (id, ev) => {
+    ev?.stopPropagation();
+    const isSaved = saved.includes(id);
+    setSaved(s => isSaved ? s.filter(x => x !== id) : [...s, id]);
+    if (!isSaved) trackEvent(id, 'save');
+  };
+
+  const geoDotClass = { idle:"manual", loading:"loading", success:"gps", error:"error" }[geoStatus];
+
+  const TIME_FILTERS = [
+    { id: "all",         label: t.allTime },
+    { id: "today",       label: t.today },
+    { id: "week",        label: t.thisWeek },
+    { id: "month",       label: t.thisMonth },
+    { id: "threemonths", label: t.threeMonths },
+  ];
+
+  const EventCard = ({ event }) => (
+    <div className="card" onClick={() => { setSelected(event); trackEvent(event.id, 'view'); }}>
+      <div className="card-bar" style={{ background: event.color }} />
+      <div className="card-inner">
+        <div className="card-row1">
+          <div className="card-icon" style={{ background: event.color + "1A" }}>{event.img}</div>
+          <div className="card-right">
+            <div className="card-km">{event.km !== null ? `⊙ ${event.km} km` : "⊙ —"}</div>
+            <div className="card-datetime">{event.date} · {event.time}</div>
+          </div>
+        </div>
+        <div className="card-title">{event.title}</div>
+        <div className="card-loc">📍 {event.location}</div>
+        <div className="card-desc">{event.desc}</div>
+        <div className="tags">{event.tags.map(tg => <span key={tg} className="tag">{tg}</span>)}</div>
+        <div className="card-btns">
+          <button className={`btn-save${saved.includes(event.id) ? " saved" : ""}`} onClick={e => toggleSave(event.id, e)}>
+            {saved.includes(event.id) ? t.saved : t.save}
+          </button>
+          <button className="btn-go" style={{ background: event.color }} onClick={e => { e.stopPropagation(); setSelected(event); trackEvent(event.id, 'click'); }}>
+            {t.seeEvent}
+          </button>
+        </div>
+        <div className="part-row">
+          <button className={`btn-part${participation[event.id] === "yes" ? " yes" : ""}`} onClick={e => toggleParticipation(event.id, "yes", e)}>
+            {participation[event.id] === "yes" ? t.goThereActive : t.goThere}
+          </button>
+          <button className={`btn-part${participation[event.id] === "maybe" ? " maybe" : ""}`} onClick={e => toggleParticipation(event.id, "maybe", e)}>
+            {t.maybe}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── ONBOARDING ──
+  if (!userName) return (
+    <>
+      <style>{makeStyles(dark)}</style>
+      <div className={`onboard${obExit ? " ob-exit" : ""}`} style={{ background: dark ? "#000" : "#FFFFFF" }}>
+        <div style={{ position:"absolute", top:48, right:24, display:"flex", gap:8 }}>
+          {/* LANG SWITCHER ON ONBOARD */}
+          <div style={{ display:"flex", gap:4 }}>
+            {LANGS.map(l => (
+              <button key={l.code} className={`ob-lang-btn${lang === l.code ? " active" : ""}`} onClick={() => setLang(l.code)}>
+                {l.label}
+              </button>
+            ))}
+          </div>
+          <div className="theme-toggle" onClick={() => setDark(d => !d)}>
+            {dark ? (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+) : (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+)}
+          </div>
+        </div>
+
+        <div className="ob-logo" style={{ color: dark ? "#F0F0EB" : "#111111" }}>Swiss<em>Out</em></div>
+        <div className="ob-tagline" style={{ color: dark ? "#444" : "#888" }}>{t.tagline}</div>
+
+        <div className="ob-form">
+          <div className="ob-label">{t.iAm}</div>
+          <div className="ob-role">
+            <div className={`ob-role-btn${role === "user" ? " selected" : ""}`} onClick={() => setRole("user")}>
+              <span className="ob-role-title">{t.participant}</span>
+              <span className="ob-role-sub">{t.participantSub}</span>
+            </div>
+            <div className={`ob-role-btn${role === "org" ? " selected-org" : ""}`} onClick={() => setRole("org")}>
+              <span className="ob-role-title">{t.organizer}</span>
+              <span className="ob-role-sub">{t.organizerSub}</span>
+            </div>
+          </div>
+
+          {role === "user" && (
+            <>
+              <div className="ob-label">{t.yourName}</div>
+              <input className="ob-input" placeholder={t.namePlaceholder} value={nameInput} autoFocus
+                onChange={e => setNameInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && nameInput.trim() && gender && age && handleOnboard()}
+                maxLength={24}
+              />
+
+              <div className="ob-label">{t.yourAge}</div>
+              <div className="ob-gender">
+                {["18-24","25-34","35-44","45+"].map(a => (
+                  <div key={a} className={`ob-gender-btn${age === a ? " selected" : ""}`} onClick={() => setAge(a)}>
+                    <span className="g-label">{a}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="ob-label">{t.yourGender}</div>
+              <div className="ob-gender">
+                <div className={`ob-gender-btn${gender === "homme" ? " selected" : ""}`} onClick={() => setGender("homme")}>
+                  <span className="g-icon">♂</span>
+                  <span className="g-label">{t.male}</span>
+                </div>
+                <div className={`ob-gender-btn${gender === "femme" ? " selected" : ""}`} onClick={() => setGender("femme")}>
+                  <span className="g-icon">♀</span>
+                  <span className="g-label">{t.female}</span>
+                </div>
+              </div>
+
+              <button className={`ob-btn${nameInput.trim() && gender && age ? " ready" : ""}`}
+                onClick={handleOnboard} disabled={!nameInput.trim() || !gender || !age}>
+                {t.discover}
+              </button>
+            </>
+          )}
+
+          {role === "org" && (
+            <button className="ob-btn ready" style={{ background:"#FF9F0A" }}
+              onClick={() => { setObExit(true); setTimeout(() => setUserName("__org__"), 480); }}>
+              {t.goOrg}
+            </button>
+          )}
+
+          {!role && <button className="ob-btn" disabled>{t.chooseSpace}</button>}
+        </div>
+        <div className="ob-skip" onClick={() => { setObExit(true); setTimeout(() => setUserName("Visiteur"), 480); }}>
+          {t.continueWithout}
+        </div>
+      </div>
+    </>
+  );
+
+  // ── ORG REDIRECT ──
+  if (userName === "__org__") return (
+    <>
+      <style>{makeStyles(dark)}</style>
+      <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:20, padding:40, textAlign:"center" }}>
+        <div style={{ fontSize:56 }}>🎤</div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:28, letterSpacing:"-0.5px" }}>
+          {t.orgSpace}
+        </div>
+        <div style={{ fontSize:14, color:"var(--muted)", maxWidth:300, lineHeight:1.6 }}>{t.orgDesc}</div>
+        <button style={{ padding:"14px 28px", borderRadius:14, border:"none", background:"#FF9F0A", color:"#fff", fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, cursor:"pointer" }}
+          onClick={() => window.location.href = "/org"}>
+          {t.goOrgBtn}
+        </button>
+        <div style={{ fontSize:12, color:"var(--faint)", cursor:"pointer" }}
+          onClick={() => { setUserName(""); setRole(""); setObExit(false); }}>
+          {t.backHome}
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      <style>{makeStyles(dark)}</style>
+      <div className="app" onClick={() => setShowLangDrop(false)}>
+
+        {/* HEADER */}
+        <div className={`header${scrolled ? " scrolled" : ""}`}>
+          <div className="header-top">
+            <div>
+              <div className="brand">Swiss<em>Out</em></div>
+              <div className="tagline">{t.hello} {userName} 👋</div>
+            </div>
+            <div className="header-right">
+              {/* LANG */}
+              <div className="lang-toggle" onClick={e => e.stopPropagation()}>
+                <div className="lang-btn" onClick={() => setShowLangDrop(d => !d)}>
+                  {LANGS.find(l => l.code === lang)?.label}
+                </div>
+                {showLangDrop && (
+                  <div className="lang-dropdown">
+                    {LANGS.map(l => (
+                      <div key={l.code} className={`lang-opt${lang === l.code ? " active" : ""}`}
+                        onClick={() => { setLang(l.code); setShowLangDrop(false); }}>
+                        <span>{l.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* THEME */}
+              <div className="theme-toggle" onClick={() => setDark(d => !d)}>
+                {dark ? (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+) : (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+)}
+              </div>
+              {/* LOCATION */}
+              <div className="loc-pill" onClick={geoStatus !== "success" ? requestGeo : undefined}>
+                <div className={`loc-dot ${geoDotClass}`} />
+                <span className="loc-name">{cityName}</span>
+              </div>
+            </div>
+          </div>
+
+          {geoStatus !== "success" && (
+            <div className={`geo-banner${geoStatus === "error" ? " error" : ""}`}
+              onClick={geoStatus === "error" ? requestGeo : undefined}>
+              <span>{{ idle:"📍", loading:"⏳", error:"⚠️" }[geoStatus]}</span>
+              <span>{geoStatus === "idle" ? t.activateGps : geoStatus === "loading" ? t.locating : t.gpsError}</span>
+              {geoStatus === "error" && <span style={{ marginLeft:"auto", fontSize:11, opacity:0.7 }}>{t.retry}</span>}
+            </div>
+          )}
+
+          <div className="radius-row">
+            <span className="radius-label">{t.rayon}</span>
+            <div className="radius-track">
+              <div className="radius-fill" style={{ width:`${(radius/150)*100}%` }} />
+              <input type="range" min={1} max={150} value={radius}
+                onChange={e => { setRadius(Number(e.target.value)); setRadiusDraft(String(e.target.value)); }} />
+            </div>
+            {editingRadius ? (
+              <input className="radius-input" type="number" min={1} max={150} value={radiusDraft} autoFocus
+                onChange={e => setRadiusDraft(e.target.value)}
+                onBlur={() => confirmRadius(radiusDraft)}
+                onKeyDown={e => { if (e.key === "Enter") confirmRadius(radiusDraft); if (e.key === "Escape") setEditingRadius(false); }}
+              />
+            ) : (
+              <span className="radius-val" onClick={() => { setEditingRadius(true); setRadiusDraft(String(radius)); }}>
+                {radius} km ✎
+              </span>
+            )}
+          </div>
+
+          {/* CATEGORIES */}
+          <div className="cats">
+            {CATS.map(c => (
+              <div key={c.id} className={`cat${cat === c.id ? " active" : ""}`} onClick={() => setCat(c.id)}>
+                <span>{c.emoji}</span><span>{c.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* TIME FILTERS */}
+          <div className="time-filters">
+            {TIME_FILTERS.map(tf => (
+              <div key={tf.id} className={`tfilter${timePeriod === tf.id ? " active" : ""}`}
+                onClick={() => setTimePeriod(tf.id)}>
+                {tf.label}
+              </div>
+            ))}
+          </div>
+
+          <div className="hdivider" />
+        </div>
+
+        {/* EXPLORE */}
+        {tab === "explore" && (
+          <>
+            <div className="sec-head">
+              <span className="sec-title">{cat === "all" ? t.around : CATS.find(c => c.id === cat)?.label}</span>
+              <span className="sec-count">{filtered.length} {filtered.length !== 1 ? t.events : t.event}</span>
+            </div>
+            {filtered.length === 0 ? (
+              <div className="empty">
+                <div className="empty-icon">🏔️</div>
+                <div className="empty-title">{t.nothingHere}</div>
+                <div className="empty-sub">{t.nothingHereSub}</div>
+              </div>
+            ) : (
+              <div className="cards">{filtered.map(e => <EventCard key={e.id} event={e} />)}</div>
+            )}
+          </>
+        )}
+
+        {/* SAVED */}
+        {tab === "saved" && (
+          <>
+            <div className="page-hero">
+              <div className="page-title">{t.myEvents}</div>
+              <div className="page-sub">{savedEvents.length} {t.savedEvents}{savedEvents.length !== 1 ? "s" : ""} {t.savedEventsSub}{savedEvents.length !== 1 ? "s" : ""}</div>
+            </div>
+            {savedEvents.length === 0 ? (
+              <div className="empty">
+                <div className="empty-icon">🌙</div>
+                <div className="empty-title">{t.emptyList}</div>
+                <div className="empty-sub">{t.emptyListSub}</div>
+              </div>
+            ) : (
+              <div className="cards">{savedEvents.map(e => <EventCard key={e.id} event={e} />)}</div>
+            )}
+          </>
+        )}
+
+        {/* BOTTOM NAV */}
+        <div className="bnav">
+          <div className={`nav-it${tab === "explore" ? " active" : ""}`} onClick={() => setTab("explore")}>
+            <span className="nav-icon">{tab === "explore" ? "✦" : "✧"}</span>
+            <span className="nav-lbl">{t.explore}</span>
+          </div>
+          <div className={`nav-it${tab === "saved" ? " active" : ""}`} onClick={() => setTab("saved")}>
+            <span className="nav-icon">{tab === "saved" ? "♥" : "♡"}</span>
+            {saved.length > 0 && <span className="nav-badge">{saved.length}</span>}
+            <span className="nav-lbl">{t.saved.replace("♥ ","")}</span>
+          </div>
+        </div>
+
+        {/* MODAL */}
+        {selected && (
+          <div className="mbackdrop" onClick={() => setSelected(null)}>
+            <div className="modal" onClick={e => e.stopPropagation()}>
+              <div className="modal-hero">
+                <div className="modal-handle" />
+                <span className="modal-emoji">{selected.img}</span>
+                <div className="modal-title">{selected.title}</div>
+                <div className="modal-loc">📍 {selected.location}</div>
+                <div className="modal-dt">🗓 {selected.date} · {selected.time}</div>
+                {selected.prix && (
+                  <div style={{display:"inline-block",padding:"4px 14px",borderRadius:20,background:"rgba(48,209,88,0.1)",border:"1px solid rgba(48,209,88,0.2)",color:"#30D158",fontSize:13,fontWeight:700,marginBottom:8}}>
+                    💰 {selected.prix}
+                  </div>
+                )}
+                {selected.km !== null && (
+                  <div className="modal-km-badge" style={{ background: selected.color }}>⊙ {selected.km} km</div>
+                )}
+              </div>
+              <div className="modal-desc">{selected.desc}</div>
+              <div className="modal-tags">{selected.tags.map(tg => <span key={tg} className="modal-tag">{tg}</span>)}</div>
+              <div className="modal-actions">
+                <div style={{ display:"flex", gap:8, marginBottom:9 }}>
+                  <button style={{ flex:1, padding:"13px", borderRadius:14, border:"1px solid",
+                    borderColor: participation[selected.id]==="yes" ? "rgba(48,209,88,0.4)" : "var(--bd2)",
+                    background: participation[selected.id]==="yes" ? "rgba(48,209,88,0.1)" : "transparent",
+                    color: participation[selected.id]==="yes" ? "#30D158" : "var(--faint)",
+                    fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:800, cursor:"pointer", transition:"all 0.2s" }}
+                    onClick={() => toggleParticipation(selected.id, "yes")}>
+                    {participation[selected.id]==="yes" ? t.goThereActive : t.goThere}
+                  </button>
+                  <button style={{ flex:1, padding:"13px", borderRadius:14, border:"1px solid",
+                    borderColor: participation[selected.id]==="maybe" ? "rgba(255,159,10,0.4)" : "var(--bd2)",
+                    background: participation[selected.id]==="maybe" ? "rgba(255,159,10,0.1)" : "transparent",
+                    color: participation[selected.id]==="maybe" ? "#FF9F0A" : "var(--faint)",
+                    fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:800, cursor:"pointer", transition:"all 0.2s" }}
+                    onClick={() => toggleParticipation(selected.id, "maybe")}>
+                    {t.maybe}
+                  </button>
+                </div>
+                {selected.lien_billetterie && (
+                  <a href={selected.lien_billetterie} target="_blank" rel="noopener noreferrer"
+                    style={{display:"block",width:"100%",padding:"15px",borderRadius:16,border:"none",
+                      background:"#30D158",color:"#fff",fontFamily:"'Syne',sans-serif",
+                      fontSize:14,fontWeight:800,cursor:"pointer",letterSpacing:"0.3px",
+                      textAlign:"center",textDecoration:"none",marginBottom:9,boxSizing:"border-box"}}>
+                    🎟 Billetterie →
+                  </a>
+                )}
+                <button className="mbtn" style={{ background: selected.color }} onClick={() => toggleSave(selected.id)}>
+                  {saved.includes(selected.id) ? t.removeSaved : t.addSaved}
+                </button>
+                <button className="mbtn-close" onClick={() => setSelected(null)}>{t.close}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
