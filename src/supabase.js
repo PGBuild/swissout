@@ -38,6 +38,38 @@ export async function trackEvent(evenementId, type) {
   } catch(e) {}
 }
 
+export async function fetchReviews(eventIds) {
+  if (!eventIds.length) return {};
+  const { data } = await supabase.from('reviews')
+    .select('event_id, rating, comment, participant_name, created_at')
+    .in('event_id', eventIds);
+  if (!data) return {};
+  const result = {};
+  data.forEach(r => {
+    if (!result[r.event_id]) result[r.event_id] = [];
+    result[r.event_id].push(r);
+  });
+  return result;
+}
+
+export async function submitReview(eventId, participantName, rating, comment) {
+  const { error } = await supabase.from('reviews').insert({
+    event_id: eventId, participant_name: participantName, rating, comment: comment || null,
+  });
+  return !error;
+}
+
+export async function subscribeNewsletter(email, name, lang = 'fr') {
+  const { error } = await supabase.from('newsletter_subscribers')
+    .upsert({ email, name, lang }, { onConflict: 'email' });
+  return !error;
+}
+
+export async function unsubscribeNewsletter(email) {
+  const { error } = await supabase.from('newsletter_subscribers').delete().eq('email', email);
+  return !error;
+}
+
 export async function fetchStats7Days(evenementIds) {
   if (!evenementIds.length) return {};
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();

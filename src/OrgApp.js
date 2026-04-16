@@ -1138,18 +1138,19 @@ function QRScanner() {
 function OrgDashboard({ user, onLogout }) {
   const [tab, setTab] = useState("events");
   const [myEvents, setMyEvents] = useState([]);
-  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [sharingEvent, setSharingEvent] = useState(null);
+  const [storyCopied, setStoryCopied] = useState(false);
+  const [embedCopied, setEmbedCopied] = useState(false);
 
   useEffect(() => {
     async function loadMyEvents() {
       if (!user?.id) return;
       const { data } = await supabase
         .from('evenements')
-        .select('id, titre, categorie, date_debut, statut')
+        .select('id, titre, categorie, date_debut, statut, ville')
         .eq('organisateur_id', user.id)
         .order('date_debut', { ascending: false });
       if (data) setMyEvents(data);
-      setLoadingEvents(false);
     }
     loadMyEvents();
   }, [user]);
@@ -1186,17 +1187,81 @@ function OrgDashboard({ user, onLogout }) {
               <div className="dash-stat green"><div className="ds-label">Approuvés</div><div className="ds-val">{approuves}</div><div className="ds-sub">publiés sur l'app</div></div>
               <div className="dash-stat orange"><div className="ds-label">En attente</div><div className="ds-val">{enAttente}</div><div className="ds-sub">en cours de validation</div></div>
             </div>
+
+            {/* WIDGET EMBED */}
+            <div style={{background:"rgba(124,58,237,0.06)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:14,padding:"14px 16px",marginBottom:16}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,marginBottom:6,color:"var(--accent)"}}>
+                &lt;/&gt; Widget pour votre site web
+              </div>
+              <div style={{fontSize:11,color:"var(--muted)",marginBottom:10}}>Intégrez vos événements SwissOut avec cet iframe :</div>
+              <div style={{background:"var(--s3)",borderRadius:10,padding:"10px 12px",fontFamily:"monospace",fontSize:11,color:"var(--txt)",wordBreak:"break-all",marginBottom:10,lineHeight:1.6}}>
+                {`<iframe src="https://swissout.vercel.app/embed?org=${user?.id}" width="100%" height="600" frameborder="0" style="border-radius:12px"></iframe>`}
+              </div>
+              <button onClick={() => {
+                navigator.clipboard.writeText(`<iframe src="https://swissout.vercel.app/embed?org=${user?.id}" width="100%" height="600" frameborder="0" style="border-radius:12px"></iframe>`);
+                setEmbedCopied(true); setTimeout(() => setEmbedCopied(false), 2000);
+              }} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(124,58,237,0.3)",background:"rgba(124,58,237,0.1)",color:"var(--accent)",fontFamily:"monospace",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                {embedCopied ? "✓ Copié !" : "Copier le code"}
+              </button>
+              <a href={`https://swissout.vercel.app/embed?org=${user?.id}`} target="_blank" rel="noopener noreferrer"
+                style={{marginLeft:8,fontSize:11,color:"var(--muted)",textDecoration:"none"}}>
+                Aperçu →
+              </a>
+            </div>
+
             <div className="events-list">
-              {(myEvents.length > 0 ? myEvents : []).map(e => (
-                <div key={e.id} className="event-card">
-                  <div className="ec-icon" style={{background: "rgba(124,58,237,0.1)"}}>📅</div>
-                  <div className="ec-info">
-                    <div className="ec-title">{e.titre}</div>
-                    <div className="ec-meta"><span>📅 {e.date_debut}</span><span>🏷 {e.categorie}</span></div>
+              {(myEvents.length > 0 ? myEvents : []).map(e => {
+                const isOpen = sharingEvent === e.id;
+                const appUrl = "https://swissout.vercel.app";
+                const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(appUrl)}`;
+                const igUrl = `https://www.instagram.com/`;
+                const storyText = `📅 ${e.titre}\n🗓 ${e.date_debut}${e.ville ? `\n📍 ${e.ville}` : ''}\n\nDisponible sur SwissOut\nswissout.vercel.app`;
+                return (
+                  <div key={e.id}>
+                    <div className="event-card">
+                      <div className="ec-icon" style={{background:"rgba(124,58,237,0.1)"}}>📅</div>
+                      <div className="ec-info">
+                        <div className="ec-title">{e.titre}</div>
+                        <div className="ec-meta"><span>📅 {e.date_debut}</span><span>🏷 {e.categorie}</span></div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                        <div className={`ec-status ${e.statut}`}>{e.statut === "approuve" ? "✓ Approuvé" : "⏳ En attente"}</div>
+                        <button onClick={() => setSharingEvent(isOpen ? null : e.id)}
+                          style={{padding:"5px 10px",borderRadius:8,border:"1px solid var(--bd2)",background:"transparent",color:"var(--muted)",fontSize:11,cursor:"pointer",fontFamily:"monospace",whiteSpace:"nowrap"}}>
+                          {isOpen ? "✕" : "Partager"}
+                        </button>
+                      </div>
+                    </div>
+                    {isOpen && (
+                      <div style={{background:"var(--s2)",border:"1px solid var(--bd)",borderRadius:12,padding:"14px 16px",marginTop:-2,marginBottom:8}}>
+                        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,marginBottom:12,color:"var(--muted)"}}>PARTAGER CET ÉVÉNEMENT</div>
+                        <div style={{display:"flex",gap:8,marginBottom:12}}>
+                          <a href={fbUrl} target="_blank" rel="noopener noreferrer"
+                            style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px",borderRadius:10,background:"rgba(24,119,242,0.1)",border:"1px solid rgba(24,119,242,0.25)",color:"#1877f2",fontSize:12,fontWeight:700,textDecoration:"none",fontFamily:"'Syne',sans-serif"}}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                            Facebook
+                          </a>
+                          <a href={igUrl} target="_blank" rel="noopener noreferrer"
+                            style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px",borderRadius:10,background:"rgba(225,48,108,0.08)",border:"1px solid rgba(225,48,108,0.2)",color:"#e1306c",fontSize:12,fontWeight:700,textDecoration:"none",fontFamily:"'Syne',sans-serif"}}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/></svg>
+                            Instagram
+                          </a>
+                        </div>
+                        <div style={{fontSize:11,color:"var(--faint)",marginBottom:6,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.5px"}}>Texte pour Story / Légende :</div>
+                        <div style={{background:"var(--s3)",borderRadius:10,padding:"10px 12px",fontFamily:"monospace",fontSize:12,whiteSpace:"pre-wrap",lineHeight:1.7,marginBottom:8}}>
+                          {storyText}
+                        </div>
+                        <button onClick={() => {
+                          navigator.clipboard.writeText(storyText);
+                          setStoryCopied(true); setTimeout(() => setStoryCopied(false), 2000);
+                        }} style={{width:"100%",padding:"9px",borderRadius:10,border:"1px solid var(--bd2)",background:"transparent",color:"var(--txt)",fontFamily:"monospace",fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                          {storyCopied ? "✓ Copié !" : "Copier le texte"}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className={`ec-status ${e.statut}`}>{e.statut === "approuve" ? "✓ Approuvé" : "⏳ En attente"}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}

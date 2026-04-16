@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { fetchEvenements, trackEvent } from './supabase';
+import { fetchEvenements, trackEvent, fetchReviews, submitReview, subscribeNewsletter, unsubscribeNewsletter } from './supabase';
 
 // ── TRANSLATIONS ──
 const T = {
@@ -557,6 +557,13 @@ export default function SwissOut() {
   const [profileSubTab, setProfileSubTab] = useState("saved");
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileDraft, setProfileDraft] = useState({});
+  const [reviews, setReviews]             = useState({});
+  const [myReviews, setMyReviews]         = useState(() => { try { return JSON.parse(localStorage.getItem('swissout_myreviews')||'{}'); } catch { return {}; } });
+  const [reviewDraft, setReviewDraft]     = useState({ rating:0, comment:'' });
+  const [newsletterEmail, setNewsletterEmail] = useState(() => localStorage.getItem('swissout_nl_email') || '');
+  const [newsletterSub, setNewsletterSub]     = useState(() => !!localStorage.getItem('swissout_nl_email'));
+  const [nlLoading, setNlLoading]             = useState(false);
+  const [showNlPreview, setShowNlPreview]     = useState(false);
 
   const handleOnboard = () => {
     const n = nameInput.trim();
@@ -588,6 +595,13 @@ export default function SwissOut() {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
   }, []);
+  useEffect(() => {
+    if (!eventsFromDB.length) return;
+    fetchReviews(eventsFromDB.map(e => e.id)).then(setReviews);
+  }, [eventsFromDB]);
+  useEffect(() => {
+    if (selected) setReviewDraft({ rating:0, comment:'' });
+  }, [selected?.id]);
   useEffect(() => {
     if (!notifGranted || !eventsFromDB.length) return;
     const timers = [];
@@ -677,6 +691,40 @@ export default function SwissOut() {
     setEditingProfile(false);
   };
 
+  const avgRating = (id) => {
+    const rs = reviews[id];
+    if (!rs?.length) return null;
+    return (rs.reduce((s, r) => s + r.rating, 0) / rs.length).toFixed(1);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!reviewDraft.rating || !selected) return;
+    const ok = await submitReview(selected.id, userName, reviewDraft.rating, reviewDraft.comment);
+    if (ok) {
+      const nm = { ...myReviews, [selected.id]: reviewDraft.rating };
+      setMyReviews(nm);
+      localStorage.setItem('swissout_myreviews', JSON.stringify(nm));
+      setReviews(r => ({ ...r, [selected.id]: [...(r[selected.id]||[]), { rating: reviewDraft.rating, comment: reviewDraft.comment, participant_name: userName }] }));
+      setReviewDraft({ rating:0, comment:'' });
+    }
+  };
+
+  const handleSubscribeNL = async () => {
+    if (!newsletterEmail.trim()) return;
+    setNlLoading(true);
+    const ok = await subscribeNewsletter(newsletterEmail.trim(), userName, lang);
+    if (ok) { localStorage.setItem('swissout_nl_email', newsletterEmail.trim()); setNewsletterSub(true); }
+    setNlLoading(false);
+  };
+
+  const handleUnsubscribeNL = async () => {
+    setNlLoading(true);
+    await unsubscribeNewsletter(newsletterEmail);
+    localStorage.removeItem('swissout_nl_email');
+    setNewsletterSub(false);
+    setNlLoading(false);
+  };
+
   const toggleParticipation = (id, status, ev) => {
     ev?.stopPropagation();
     setParticipation(p => {
@@ -733,6 +781,11 @@ export default function SwissOut() {
         <div className="card-loc">{event.location}</div>
         <div className="card-desc">{event.desc}</div>
         <div className="tags">{event.tags.map(tg => <span key={tg} className="tag">{tg}</span>)}</div>
+        {(() => { const avg = avgRating(event.id); return avg ? (
+          <div style={{ fontSize:11, color:"#FF9F0A", marginTop:7, fontWeight:700 }}>
+            {"★".repeat(Math.round(avg))}{"☆".repeat(5-Math.round(avg))} <span style={{ color:"var(--faint)" }}>{avg} ({reviews[event.id]?.length})</span>
+          </div>
+        ) : null; })()}
         <div className="card-btns">
           <button className={`btn-save${saved.includes(event.id) ? " saved" : ""}`} onClick={e => toggleSave(event.id, e)}>
             {saved.includes(event.id) ? t.saved : t.save}
@@ -1133,6 +1186,41 @@ export default function SwissOut() {
                 style={{ width:"100%", padding:"13px", borderRadius:14, border:"1px solid var(--bd2)", background:"transparent", color:"var(--txt)", fontFamily:"'DM Sans',sans-serif", fontSize:14, fontWeight:600, cursor:"pointer" }}>
                 {t.editProfile}
               </button>
+
+              {/* NEWSLETTER */}
+              <div style={{ padding:"16px", background:"var(--s1)", border:"1px solid var(--bd)", borderRadius:14 }}>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, marginBottom:8 }}>
+                  Newsletter hebdomadaire
+                </div>
+                {newsletterSub ? (
+                  <div>
+                    <div style={{ fontSize:12, color:"#30D158", marginBottom:8 }}>✓ Inscrit — {newsletterEmail}</div>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <button onClick={() => setShowNlPreview(true)}
+                        style={{ flex:1, padding:"9px", borderRadius:10, border:"1px solid var(--bd2)", background:"transparent", color:"var(--accent)", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                        Aperçu de la newsletter
+                      </button>
+                      <button onClick={handleUnsubscribeNL} disabled={nlLoading}
+                        style={{ flex:1, padding:"9px", borderRadius:10, border:"1px solid rgba(255,59,47,0.3)", background:"transparent", color:"#FF3B2F", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                        Se désabonner
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize:12, color:"var(--muted)", marginBottom:8 }}>Résumé des événements de la semaine chaque lundi</div>
+                    <div style={{ display:"flex", gap:8 }}>
+                      <input value={newsletterEmail} onChange={e => setNewsletterEmail(e.target.value)}
+                        placeholder="ton@email.ch" type="email"
+                        style={{ flex:1, padding:"10px 12px", borderRadius:10, border:"1px solid var(--bd)", background:"var(--s2)", fontSize:13, color:"var(--txt)", outline:"none", fontFamily:"'DM Sans',sans-serif" }} />
+                      <button onClick={handleSubscribeNL} disabled={nlLoading || !newsletterEmail.trim()}
+                        style={{ padding:"10px 14px", borderRadius:10, border:"none", background:"var(--accent)", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans',sans-serif", opacity: nlLoading ? 0.6 : 1 }}>
+                        {nlLoading ? "..." : "S'abonner"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
               {'Notification' in window && !notifGranted && (
                 <button onClick={() => Notification.requestPermission().then(p => { if (p === 'granted') setNotifGranted(true); })}
                   style={{ width:"100%", padding:"13px", borderRadius:14, border:"1px solid rgba(124,58,237,0.3)", background:"rgba(124,58,237,0.08)", color:"var(--accent)", fontFamily:"'DM Sans',sans-serif", fontSize:14, fontWeight:600, cursor:"pointer" }}>
@@ -1322,10 +1410,91 @@ export default function SwissOut() {
                   </a>
                 </div>
                 <button className="mbtn-close" onClick={() => setSelected(null)}>{t.close}</button>
+
+                {/* AVIS — uniquement pour les événements passés */}
+                {new Date(selected.date) < new Date() && (
+                  <div style={{ borderTop:"1px solid var(--bd)", paddingTop:16, marginTop:4 }}>
+                    <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, marginBottom:12 }}>
+                      Avis {reviews[selected.id]?.length ? `(${reviews[selected.id].length})` : ""}
+                    </div>
+
+                    {/* Avis existants */}
+                    {reviews[selected.id]?.slice(0,3).map((r, i) => (
+                      <div key={i} style={{ marginBottom:10, padding:"10px 12px", borderRadius:12, background:"var(--s2)", border:"1px solid var(--bd)" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                          <span style={{ fontSize:12, fontWeight:700 }}>{r.participant_name}</span>
+                          <span style={{ color:"#FF9F0A", fontSize:13 }}>{"★".repeat(r.rating)}{"☆".repeat(5-r.rating)}</span>
+                        </div>
+                        {r.comment && <div style={{ fontSize:12, color:"var(--muted)" }}>{r.comment}</div>}
+                      </div>
+                    ))}
+
+                    {/* Formulaire d'avis */}
+                    {myReviews[selected.id] ? (
+                      <div style={{ textAlign:"center", fontSize:12, color:"var(--accent)", padding:"8px" }}>
+                        ✓ Vous avez noté {myReviews[selected.id]}/5 — merci !
+                      </div>
+                    ) : (
+                      <div style={{ background:"var(--s2)", borderRadius:14, padding:"14px", border:"1px solid var(--bd)" }}>
+                        <div style={{ fontSize:12, color:"var(--muted)", marginBottom:10 }}>Votre avis :</div>
+                        <div style={{ display:"flex", gap:6, justifyContent:"center", marginBottom:12 }}>
+                          {[1,2,3,4,5].map(n => (
+                            <span key={n} onClick={() => setReviewDraft(d => ({...d, rating:n}))}
+                              style={{ fontSize:28, cursor:"pointer", color: n <= reviewDraft.rating ? "#FF9F0A" : "var(--bd2)", transition:"color 0.1s" }}>★</span>
+                          ))}
+                        </div>
+                        <input value={reviewDraft.comment} onChange={e => setReviewDraft(d => ({...d, comment:e.target.value}))}
+                          placeholder="Commentaire (optionnel)"
+                          style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:"1px solid var(--bd2)", background:"var(--s1)", fontSize:13, color:"var(--txt)", outline:"none", marginBottom:10, boxSizing:"border-box", fontFamily:"'DM Sans',sans-serif" }} />
+                        <button onClick={handleSubmitReview} disabled={!reviewDraft.rating}
+                          style={{ width:"100%", padding:"11px", borderRadius:12, border:"none", background: reviewDraft.rating ? "var(--accent)" : "var(--bd2)", color:"#fff", fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, cursor: reviewDraft.rating ? "pointer" : "not-allowed" }}>
+                          Envoyer l'avis
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
+        {/* NEWSLETTER PREVIEW */}
+        {showNlPreview && (() => {
+          const weekEvents = eventsWithDist.filter(e => {
+            const d = new Date(e.date); const now = new Date();
+            return d >= now && d <= new Date(now.getTime() + 7*24*60*60*1000);
+          }).slice(0, 5);
+          const dateStr = new Date().toLocaleDateString('fr', { day:'numeric', month:'long', year:'numeric' });
+          return (
+            <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(10px)", zIndex:300, display:"flex", alignItems:"flex-end" }}
+              onClick={() => setShowNlPreview(false)}>
+              <div style={{ width:"100%", maxWidth:430, margin:"0 auto", background:"var(--s1)", borderRadius:"24px 24px 0 0", padding:"20px 24px 48px", border:"1px solid var(--bd2)", borderBottom:"none", maxHeight:"80vh", overflowY:"auto" }}
+                onClick={e => e.stopPropagation()}>
+                <div style={{ width:36, height:3, background:"var(--bd2)", borderRadius:2, margin:"0 auto 20px" }} />
+                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16, marginBottom:4 }}>Aperçu newsletter</div>
+                <div style={{ fontSize:12, color:"var(--faint)", marginBottom:20 }}>Semaine du {dateStr}</div>
+                <div style={{ background:"var(--s2)", borderRadius:14, padding:"16px", border:"1px solid var(--bd)", fontFamily:"monospace", fontSize:12, lineHeight:1.8, whiteSpace:"pre-wrap" }}>
+{`Bonjour ${userName} 👋
+
+Voici les événements SwissOut cette semaine :
+${'─'.repeat(36)}
+${weekEvents.length ? weekEvents.map(e => `📅 ${e.title}\n   ${e.date} · ${e.location}`).join('\n\n') : 'Aucun événement cette semaine.'}
+
+${'─'.repeat(36)}
+Découvrir tous les événements →
+swissout.vercel.app
+
+Pour se désabonner, accéder au profil.`}
+                </div>
+                <button onClick={() => setShowNlPreview(false)}
+                  style={{ width:"100%", marginTop:14, padding:"13px", borderRadius:14, border:"1px solid var(--bd2)", background:"transparent", color:"var(--faint)", fontFamily:"'DM Sans',sans-serif", fontSize:14, cursor:"pointer" }}>
+                  Fermer
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* SHARE SHEET */}
         {shareEvent && (
           <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(10px)", zIndex:250, display:"flex", alignItems:"flex-end" }}
