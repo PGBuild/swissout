@@ -561,6 +561,14 @@ export default function SwissOut() {
     km: userPos ? Math.round(getDistance(userPos.lat, userPos.lng, e.lat, e.lng)) : null,
   }));
 
+  const formatPrix = (p) => {
+    if (!p) return null;
+    const s = p.trim();
+    if (!s) return null;
+    if (/^[0-9]+([.,][0-9]+)?$/.test(s)) return `${s} CHF`;
+    return s;
+  };
+
   const filtered = eventsWithDist
     .filter(e =>
       (cat === "all" || e.category === cat) &&
@@ -603,9 +611,9 @@ export default function SwissOut() {
         <div className="card-row1">
           <div className="card-datetime" style={{ fontSize:11, color:"var(--faint)", alignSelf:"center" }}>{event.date} · {event.time}</div>
           <div className="card-right">
-            {event.prix && (
+            {formatPrix(event.prix) && (
               <div style={{ display:"inline-block", padding:"2px 9px", borderRadius:10, background:"var(--s2)", border:"1px solid var(--bd)", color:"var(--muted)", fontSize:10, fontWeight:700, marginBottom:4, textAlign:"right" }}>
-                {event.prix}
+                {formatPrix(event.prix)}
               </div>
             )}
             <div className="card-km">{event.km !== null ? `${event.km} km` : "—"}</div>
@@ -945,14 +953,14 @@ export default function SwissOut() {
                 <div className="modal-title">{selected.title}</div>
                 <div className="modal-loc">{selected.address ? `${selected.address}, ${selected.location}` : selected.location}</div>
                 <div className="modal-dt">{selected.date} · {selected.time}</div>
-                <div style={{ display:"flex", gap:6, justifyContent:"center", flexWrap:"wrap", marginTop:10, marginBottom:4 }}>
-                  {selected.prix && (
-                    <div style={{display:"inline-block",padding:"4px 13px",borderRadius:16,background:"var(--s2)",border:"1px solid var(--bd)",color:"var(--muted)",fontSize:13,fontWeight:700}}>
-                      {selected.prix}
-                    </div>
-                  )}
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, marginTop:10, marginBottom:4 }}>
                   {selected.km !== null && (
                     <div className="modal-km-badge" style={{ background: selected.color }}>⊙ {selected.km} km</div>
+                  )}
+                  {formatPrix(selected.prix) && (
+                    <div style={{display:"inline-block",padding:"4px 13px",borderRadius:16,background:"var(--s2)",border:"1px solid var(--bd)",color:"var(--muted)",fontSize:13,fontWeight:700}}>
+                      {formatPrix(selected.prix)}
+                    </div>
                   )}
                 </div>
               </div>
