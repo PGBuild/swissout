@@ -367,20 +367,16 @@ input[type=range]{position:absolute;inset:-10px 0;width:100%;opacity:0;cursor:po
 .sec-count{font-size:11px;color:var(--faint);background:var(--s2);padding:3px 9px;border-radius:10px}
 
 .cards{padding:0 22px 130px;display:flex;flex-direction:column;gap:13px}
-.card{background:var(--s1);border:1px solid var(--bd);border-radius:22px;overflow:hidden;cursor:pointer;transition:transform 0.25s cubic-bezier(.34,1.56,.64,1),box-shadow 0.25s,border-color 0.2s,background 0.35s;animation:cardIn 0.4s cubic-bezier(.34,1.2,.64,1) both;}
-.card:hover{transform:translateY(-3px);border-color:var(--bd2);box-shadow:0 16px 48px var(--shadow)}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:18px;overflow:hidden;cursor:pointer;transition:transform 0.25s cubic-bezier(.34,1.56,.64,1),box-shadow 0.25s,border-color 0.2s,background 0.35s;animation:cardIn 0.4s cubic-bezier(.34,1.2,.64,1) both;}
+.card:hover{transform:translateY(-2px);border-color:var(--bd2);box-shadow:0 8px 32px var(--shadow)}
 .card:active{transform:scale(0.975)}
 @keyframes cardIn{from{opacity:0;transform:translateY(18px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-.card-bar{height:3px}
 .card-inner{padding:16px 18px 18px}
-.card-row1{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:11px}
-.card-icon{width:50px;height:50px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;transition:transform 0.2s}
-.card:hover .card-icon{transform:scale(1.08) rotate(-3deg)}
-.card-right{text-align:right}
-.card-km{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--accent)}
-.card-datetime{font-size:11px;color:var(--faint);margin-top:3px}
-.card-title{font-family:'Syne',sans-serif;font-weight:800;font-size:19px;letter-spacing:-0.4px;line-height:1.15;margin-bottom:5px}
-.card-loc{font-size:11px;color:var(--faint);margin-bottom:9px;display:flex;align-items:center;gap:3px;font-weight:500;letter-spacing:0.3px;text-transform:uppercase}
+.card-row1{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.card-right{text-align:right;display:flex;flex-direction:column;align-items:flex-end}
+.card-km{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--accent)}
+.card-title{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;letter-spacing:-0.4px;line-height:1.15;margin-bottom:4px}
+.card-loc{font-size:11px;color:var(--faint);margin-bottom:8px;font-weight:500;letter-spacing:0.2px;text-transform:uppercase}
 .card-desc{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:13px}
 .tags{display:flex;gap:5px;flex-wrap:wrap}
 .tag{padding:3px 9px;border-radius:7px;font-size:10px;font-weight:700;background:var(--s2);color:var(--faint);letter-spacing:0.4px;text-transform:uppercase}
@@ -417,12 +413,11 @@ input[type=range]{position:absolute;inset:-10px 0;width:100%;opacity:0;cursor:po
 @keyframes fadein{from{opacity:0}to{opacity:1}}
 .modal{width:100%;max-width:430px;margin:0 auto;background:var(--s1);border-radius:28px 28px 0 0;padding:0 0 48px;overflow:hidden;animation:slideup 0.35s cubic-bezier(.34,1.4,.64,1);border:1px solid var(--bd2);border-bottom:none;transition:background 0.35s}
 @keyframes slideup{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.modal-hero{padding:28px 24px 20px;text-align:center}
-.modal-handle{width:40px;height:4px;background:var(--bd2);border-radius:2px;margin:0 auto 24px}
-.modal-emoji{font-size:72px;margin-bottom:14px;display:block;animation:float 3s ease-in-out infinite}
-.modal-title{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;letter-spacing:-0.6px;margin-bottom:6px}
-.modal-loc{font-size:12px;color:var(--faint);margin-bottom:3px;letter-spacing:0.3px;text-transform:uppercase;font-weight:600}
-.modal-dt{font-size:13px;color:var(--muted);margin-bottom:16px}
+.modal-hero{padding:20px 24px 16px;text-align:center}
+.modal-handle{width:36px;height:3px;background:var(--bd2);border-radius:2px;margin:0 auto 20px}
+.modal-title{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;letter-spacing:-0.5px;margin-bottom:5px}
+.modal-loc{font-size:11px;color:var(--faint);margin-bottom:2px;letter-spacing:0.3px;text-transform:uppercase;font-weight:600}
+.modal-dt{font-size:12px;color:var(--muted)}
 .modal-km-badge{display:inline-block;padding:5px 14px;border-radius:20px;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:#fff;margin-bottom:20px}
 .modal-desc{font-size:14px;color:var(--muted);line-height:1.65;margin-bottom:18px;padding:0 24px}
 .modal-tags{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-bottom:28px;padding:0 24px}
@@ -489,10 +484,12 @@ export default function SwissOut() {
   const [showLangDrop, setShowLangDrop] = useState(false);
   const t = T[lang];
 
-  const [userName, setUserName]     = useState("");
-  const [nameInput, setNameInput]   = useState("");
-  const [gender, setGender]         = useState("");
-  const [age, setAge]               = useState("");
+  const _p = (() => { try { return JSON.parse(localStorage.getItem('swissout_profile') || '{}'); } catch { return {}; } })();
+  const [userName, setUserName]     = useState(_p.userName || "");
+  const [nameInput, setNameInput]   = useState(_p.userName || "");
+  const [gender, setGender]         = useState(_p.gender || "");
+  const [age, setAge]               = useState(_p.age || "");
+  const [phone, setPhone]           = useState(_p.phone || "");
   const [obExit, setObExit]         = useState(false);
   const [role, setRole]             = useState("");
   const [dark, setDark]             = useState(false);
@@ -514,6 +511,7 @@ export default function SwissOut() {
   const handleOnboard = () => {
     const n = nameInput.trim();
     if (!n || !gender || !age) return;
+    localStorage.setItem('swissout_profile', JSON.stringify({ userName: n, gender, age, phone, lang }));
     setObExit(true);
     setTimeout(() => setUserName(n), 480);
   };
@@ -601,17 +599,20 @@ export default function SwissOut() {
 
   const EventCard = ({ event }) => (
     <div className="card" onClick={() => { setSelected(event); trackEvent(event.id, 'view'); }}>
-      <div className="card-bar" style={{ background: event.color }} />
       <div className="card-inner">
         <div className="card-row1">
-          <div className="card-icon" style={{ background: event.color + "1A" }}>{event.img}</div>
+          <div className="card-datetime" style={{ fontSize:11, color:"var(--faint)", alignSelf:"center" }}>{event.date} · {event.time}</div>
           <div className="card-right">
-            <div className="card-km">{event.km !== null ? `⊙ ${event.km} km` : "⊙ —"}</div>
-            <div className="card-datetime">{event.date} · {event.time}</div>
+            {event.prix && (
+              <div style={{ display:"inline-block", padding:"2px 9px", borderRadius:10, background:"var(--s2)", border:"1px solid var(--bd)", color:"var(--muted)", fontSize:10, fontWeight:700, marginBottom:4, textAlign:"right" }}>
+                {event.prix}
+              </div>
+            )}
+            <div className="card-km">{event.km !== null ? `${event.km} km` : "—"}</div>
           </div>
         </div>
         <div className="card-title">{event.title}</div>
-        <div className="card-loc">📍 {event.location}</div>
+        <div className="card-loc">{event.location}</div>
         <div className="card-desc">{event.desc}</div>
         <div className="tags">{event.tags.map(tg => <span key={tg} className="tag">{tg}</span>)}</div>
         <div className="card-btns">
@@ -626,11 +627,11 @@ export default function SwissOut() {
           <div style={{ marginTop:8 }}>
             <a href={event.lien_billetterie} target="_blank" rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-                padding:"9px 14px", borderRadius:12, background:"rgba(48,209,88,0.1)",
-                border:"1px solid rgba(48,209,88,0.25)", color:"#30D158",
-                fontSize:12, fontWeight:700, textDecoration:"none", fontFamily:"'Syne',sans-serif" }}>
-              🎟 Acheter des billets
+              style={{ display:"flex", alignItems:"center", justifyContent:"center",
+                padding:"9px 14px", borderRadius:12, background:"transparent",
+                border:"1px solid var(--bd2)", color:"var(--txt)",
+                fontSize:12, fontWeight:700, textDecoration:"none", fontFamily:"'DM Sans',sans-serif" }}>
+              Acheter des billets
             </a>
           </div>
         )}
@@ -714,6 +715,12 @@ export default function SwissOut() {
                 onChange={e => setNameInput(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && nameInput.trim() && gender && age && handleOnboard()}
                 maxLength={24}
+              />
+
+              <div className="ob-label">Numéro de téléphone</div>
+              <input className="ob-input" type="tel" placeholder="+41 79 000 00 00"
+                value={phone} onChange={e => setPhone(e.target.value)}
+                style={{ fontSize:16 }}
               />
 
               <div className="ob-label">{t.yourAge}</div>
@@ -935,18 +942,19 @@ export default function SwissOut() {
             <div className="modal" onClick={e => e.stopPropagation()}>
               <div className="modal-hero">
                 <div className="modal-handle" />
-                <span className="modal-emoji">{selected.img}</span>
                 <div className="modal-title">{selected.title}</div>
-                <div className="modal-loc">📍 {selected.address ? `${selected.address}, ${selected.location}` : selected.location}</div>
-                <div className="modal-dt">🗓 {selected.date} · {selected.time}</div>
-                {selected.prix && (
-                  <div style={{display:"inline-block",padding:"4px 14px",borderRadius:20,background:"rgba(48,209,88,0.1)",border:"1px solid rgba(48,209,88,0.2)",color:"#30D158",fontSize:13,fontWeight:700,marginBottom:8}}>
-                    💰 {selected.prix}
-                  </div>
-                )}
-                {selected.km !== null && (
-                  <div className="modal-km-badge" style={{ background: selected.color }}>⊙ {selected.km} km</div>
-                )}
+                <div className="modal-loc">{selected.address ? `${selected.address}, ${selected.location}` : selected.location}</div>
+                <div className="modal-dt">{selected.date} · {selected.time}</div>
+                <div style={{ display:"flex", gap:6, justifyContent:"center", flexWrap:"wrap", marginTop:10, marginBottom:4 }}>
+                  {selected.prix && (
+                    <div style={{display:"inline-block",padding:"4px 13px",borderRadius:16,background:"var(--s2)",border:"1px solid var(--bd)",color:"var(--muted)",fontSize:13,fontWeight:700}}>
+                      {selected.prix}
+                    </div>
+                  )}
+                  {selected.km !== null && (
+                    <div className="modal-km-badge" style={{ background: selected.color }}>⊙ {selected.km} km</div>
+                  )}
+                </div>
               </div>
               <div className="modal-desc">{selected.desc}</div>
               <div className="modal-tags">{selected.tags.map(tg => <span key={tg} className="modal-tag">{tg}</span>)}</div>
@@ -971,22 +979,22 @@ export default function SwissOut() {
                 </div>
                 {selected.lien_billetterie && (
                   <a href={selected.lien_billetterie} target="_blank" rel="noopener noreferrer"
-                    style={{display:"block",width:"100%",padding:"15px",borderRadius:16,border:"none",
-                      background:"#30D158",color:"#fff",fontFamily:"'Syne',sans-serif",
-                      fontSize:14,fontWeight:800,cursor:"pointer",letterSpacing:"0.3px",
-                      textAlign:"center",textDecoration:"none",marginBottom:9,boxSizing:"border-box"}}>
-                    🎟 Acheter des billets →
+                    style={{display:"block",width:"100%",padding:"13px",borderRadius:14,
+                      border:"1px solid var(--bd2)",background:"transparent",color:"var(--txt)",
+                      fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,
+                      textAlign:"center",textDecoration:"none",boxSizing:"border-box"}}>
+                    Acheter des billets
                   </a>
                 )}
                 {(() => {
                   const mapsQuery = encodeURIComponent([selected.address, selected.location, 'Suisse'].filter(Boolean).join(', '));
                   return (
                     <a href={`https://maps.apple.com/?q=${mapsQuery}`} target="_blank" rel="noopener noreferrer"
-                      style={{display:"block",width:"100%",padding:"13px",borderRadius:16,
+                      style={{display:"block",width:"100%",padding:"13px",borderRadius:14,
                         border:"1px solid var(--bd2)",background:"transparent",color:"var(--txt)",
-                        fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:700,
-                        textAlign:"center",textDecoration:"none",marginBottom:9,boxSizing:"border-box"}}>
-                      🗺 Voir sur Maps
+                        fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,
+                        textAlign:"center",textDecoration:"none",boxSizing:"border-box"}}>
+                      Voir sur Maps
                     </a>
                   );
                 })()}
