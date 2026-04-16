@@ -549,6 +549,7 @@ export default function SwissOut() {
   const [geoStatus, setGeoStatus]   = useState("idle");
   const [scrolled, setScrolled]     = useState(false);
   const [eventsFromDB, setEventsFromDB] = useState([]);
+  const [tickets, setTickets]           = useState(() => { try { return JSON.parse(localStorage.getItem('swissout_tickets')||'{}'); } catch { return {}; } });
   const [search, setSearch]             = useState("");
   const [shareEvent, setShareEvent]     = useState(null);
   const [shareCopied, setShareCopied]   = useState(false);
@@ -634,6 +635,7 @@ export default function SwissOut() {
     address: e.adresse || null,
     instagram_url: e.instagram_url || null,
     facebook_url: e.facebook_url || null,
+    cover_url: e.cover_url || null,
   })) : EVENTS_RAW).map(e => ({
     ...e,
     km: userPos ? Math.round(getDistance(userPos.lat, userPos.lng, e.lat, e.lng)) : null,
@@ -682,6 +684,15 @@ export default function SwissOut() {
       return { ...p, [id]: status };
     });
     trackEvent(id, 'participation');
+    if (status === "yes") {
+      setTickets(t => {
+        if (t[id]) return t;
+        const tid = (crypto.randomUUID ? crypto.randomUUID() : `${id}-${Date.now()}`);
+        const nt = {...t, [id]: tid};
+        localStorage.setItem('swissout_tickets', JSON.stringify(nt));
+        return nt;
+      });
+    }
   };
 
   const toggleSave = (id, ev) => {
@@ -703,6 +714,9 @@ export default function SwissOut() {
 
   const EventCard = ({ event }) => (
     <div className="card" onClick={() => { setSelected(event); trackEvent(event.id, 'view'); }}>
+      {event.cover_url && (
+        <img src={event.cover_url} alt="" style={{ width:"100%", height:130, objectFit:"cover", display:"block" }} />
+      )}
       <div className="card-inner">
         <div className="card-row1">
           <div className="card-datetime" style={{ fontSize:11, color:"var(--faint)", alignSelf:"center" }}>{event.date} · {event.time}</div>
@@ -1081,14 +1095,36 @@ export default function SwissOut() {
 
             {(() => {
               const evts = profileSubTab === "saved" ? savedEvents : profileSubTab === "yes" ? yesEvents : maybeEvents;
-              return evts.length === 0 ? (
+              if (evts.length === 0) return (
                 <div className="empty">
                   <div className="empty-icon">🌙</div>
                   <div className="empty-title">{t.emptyList}</div>
                   <div className="empty-sub">{t.emptyListSub}</div>
                 </div>
-              ) : (
-                <div className="cards">{evts.map(e => <EventCard key={e.id} event={e} />)}</div>
+              );
+              return (
+                <div className="cards">
+                  {evts.map(e => (
+                    <div key={e.id}>
+                      <EventCard event={e} />
+                      {profileSubTab === "yes" && tickets[e.id] && (
+                        <div style={{ background:"var(--s1)", border:"1px solid var(--bd)", borderRadius:14, padding:"16px", marginTop:-6, display:"flex", alignItems:"center", gap:16 }}>
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`SWISSOUT|${e.id}|${e.title}|${e.date}|${userName}|${tickets[e.id]}`)}`}
+                            alt="QR Billet" style={{ width:80, height:80, borderRadius:8, flexShrink:0 }}
+                          />
+                          <div>
+                            <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, marginBottom:4 }}>Mon billet</div>
+                            <div style={{ fontSize:11, color:"var(--faint)", marginBottom:6 }}>Présentez ce QR code à l'entrée</div>
+                            <div style={{ fontFamily:"monospace", fontSize:9, color:"var(--faint)", wordBreak:"break-all" }}>
+                              {tickets[e.id]?.slice(0,16)}...
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               );
             })()}
 
@@ -1185,6 +1221,9 @@ export default function SwissOut() {
         {selected && (
           <div className="mbackdrop" onClick={() => setSelected(null)}>
             <div className="modal" onClick={e => e.stopPropagation()}>
+              {selected.cover_url && (
+                <img src={selected.cover_url} alt="" style={{ width:"100%", height:180, objectFit:"cover", display:"block" }} />
+              )}
               <div className="modal-hero">
                 <div className="modal-handle" />
                 <div className="modal-title">{selected.title}</div>

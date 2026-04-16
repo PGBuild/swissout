@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { supabase, fetchStatsOrganisateur } from './supabase';
+import React, { useState, useEffect } from "react";
+import { supabase, fetchStatsOrganisateur, fetchStats7Days } from './supabase';
 
 // ── MOCK DATA ──
 const MOCK_ORGANISATEURS = [
@@ -585,7 +585,10 @@ function EventForm({ user, onSuccess }) {
     date_debut:"", heure:"", description:"",
     tags:"", lien_billetterie:"", prix:"",
     instagram_url:"", facebook_url:"",
+    recurrence:"once",
   });
+  const [coverFile, setCoverFile] = useState(null);
+  const [coverPreview, setCoverPreview] = useState(null);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -622,27 +625,48 @@ function EventForm({ user, onSuccess }) {
         if (geoData[0]) { lat = parseFloat(geoData[0].lat); lng = parseFloat(geoData[0].lon); }
       } catch(e) {}
 
-      const { error } = await supabase.from('evenements').insert({
-        titre: form.titre,
-        categorie: form.categorie,
-        ville: form.ville,
-        adresse: form.adresse || null,
-        latitude: lat || 46.9481,
-        longitude: lng || 7.4474,
-        date_debut: form.date_debut,
-        heure: form.heure,
-        description: form.description,
-        tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-        lien_billetterie: form.lien_billetterie || null,
-        prix: form.prix || null,
-        instagram_url: form.instagram_url || null,
-        facebook_url: form.facebook_url || null,
-        statut: 'en_attente',
-        auto_approve_at: autoApproveAt,
-        organisateur_id: user?.id || null,
-      });
+      // Upload cover image
+      let coverUrl = null;
+      if (coverFile) {
+        try {
+          const fname = `${Date.now()}-${coverFile.name.replace(/[^a-z0-9.]/gi,'_')}`;
+          const { error: storErr } = await supabase.storage.from('event-covers').upload(fname, coverFile, { contentType: coverFile.type });
+          if (!storErr) {
+            const { data: { publicUrl } } = supabase.storage.from('event-covers').getPublicUrl(fname);
+            coverUrl = publicUrl;
+          }
+        } catch {}
+      }
 
+      const baseRow = {
+        titre: form.titre, categorie: form.categorie,
+        ville: form.ville, adresse: form.adresse || null,
+        latitude: lat || 46.9481, longitude: lng || 7.4474,
+        heure: form.heure, description: form.description,
+        tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        lien_billetterie: form.lien_billetterie || null, prix: form.prix || null,
+        instagram_url: form.instagram_url || null, facebook_url: form.facebook_url || null,
+        cover_url: coverUrl, recurrence: form.recurrence,
+        statut: 'en_attente', auto_approve_at: autoApproveAt,
+        organisateur_id: user?.id || null,
+      };
+
+      const { error } = await supabase.from('evenements').insert({ ...baseRow, date_debut: form.date_debut });
       if (error) throw error;
+
+      // Créer les occurrences récurrentes sur 3 mois
+      if (form.recurrence !== 'once') {
+        const occurrences = [];
+        const start = new Date(form.date_debut);
+        const endDate = new Date(start.getTime() + 90 * 24 * 60 * 60 * 1000);
+        let cur = new Date(start);
+        while (true) {
+          form.recurrence === 'weekly' ? cur.setDate(cur.getDate() + 7) : cur.setMonth(cur.getMonth() + 1);
+          if (cur > endDate) break;
+          occurrences.push({ ...baseRow, date_debut: cur.toISOString().split('T')[0] });
+        }
+        if (occurrences.length) await supabase.from('evenements').insert(occurrences);
+      }
       setSuccess(true);
       setTimeout(() => { setSuccess(false); onSuccess(); }, 2500);
     } catch(err) {
@@ -760,6 +784,50 @@ function EventForm({ user, onSuccess }) {
         </div>
       </div>
 
+      {/* PHOTO DE COUVERTURE */}
+      <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:18,padding:"20px 20px",marginBottom:14}}>
+        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:16}}>🖼️ Photo de couverture</div>
+        {coverPreview && (
+          <div style={{marginBottom:12,position:"relative"}}>
+            <img src={coverPreview} alt="Aperçu" style={{width:"100%",height:160,objectFit:"cover",borderRadius:12}} />
+            <button onClick={() => { setCoverFile(null); setCoverPreview(null); }}
+              style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,0.6)",border:"none",borderRadius:8,color:"#fff",padding:"4px 8px",cursor:"pointer",fontSize:12}}>
+              ✕ Retirer
+            </button>
+          </div>
+        )}
+        <label style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"13px",borderRadius:12,border:"2px dashed var(--bd2)",cursor:"pointer",fontSize:13,color:"var(--muted)",transition:"all 0.2s"}}>
+          <input type="file" accept="image/*" style={{display:"none"}} onChange={e => {
+            const f = e.target.files[0];
+            if (!f) return;
+            setCoverFile(f);
+            setCoverPreview(URL.createObjectURL(f));
+          }} />
+          {coverFile ? "✓ Photo sélectionnée" : "Choisir une image (JPG, PNG, WebP)"}
+        </label>
+      </div>
+
+      {/* RÉCURRENCE */}
+      <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:18,padding:"20px 20px",marginBottom:14}}>
+        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:16}}>🔁 Récurrence</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {[["once","Une seule fois"],["weekly","Chaque semaine"],["monthly","Chaque mois"]].map(([val,label]) => (
+            <div key={val} onClick={() => set("recurrence", val)}
+              style={{padding:"8px 16px",borderRadius:20,cursor:"pointer",fontSize:12,fontWeight:600,transition:"all 0.15s",
+                background: form.recurrence===val ? "var(--accent)" : "var(--s2)",
+                border: `1px solid ${form.recurrence===val ? "var(--accent)" : "var(--bd)"}`,
+                color: form.recurrence===val ? "#fff" : "var(--muted)"}}>
+              {label}
+            </div>
+          ))}
+        </div>
+        {form.recurrence !== 'once' && (
+          <div style={{marginTop:10,fontSize:11,color:"var(--faint)",fontFamily:"monospace"}}>
+            {form.recurrence === 'weekly' ? "Crée ~12 événements sur 3 mois" : "Crée 3 événements sur 3 mois"}
+          </div>
+        )}
+      </div>
+
       {/* RÉSEAUX SOCIAUX */}
       <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:18,padding:"20px 20px",marginBottom:20}}>
         <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:16}}>📱 Réseaux sociaux</div>
@@ -796,6 +864,7 @@ function EventForm({ user, onSuccess }) {
 function OrgAnalytics({ user }) {
   const [events, setEvents] = useState([]);
   const [stats, setStats] = useState({});
+  const [chart, setChart] = useState({});
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState("views");
 
@@ -809,8 +878,10 @@ function OrgAnalytics({ user }) {
           .eq('organisateur_id', user?.id);
         if (evts && evts.length > 0) {
           setEvents(evts);
-          const s = await fetchStatsOrganisateur(evts.map(e => e.id));
+          const ids = evts.map(e => e.id);
+          const [s, c] = await Promise.all([fetchStatsOrganisateur(ids), fetchStats7Days(ids)]);
           setStats(s);
+          setChart(c);
         }
       } catch(e) { console.error(e); }
       setLoading(false);
@@ -870,6 +941,33 @@ function OrgAnalytics({ user }) {
         ))}
       </div>
 
+      {/* 7-DAY CHART */}
+      {Object.keys(chart).length > 0 && (() => {
+        const chartData = Object.entries(chart).map(([day, c]) => ({
+          day: new Date(day + 'T12:00:00').toLocaleDateString('fr', { weekday: 'short' }),
+          val: c[metric] || 0,
+        }));
+        const maxV = Math.max(...chartData.map(d => d.val), 1);
+        return (
+          <div style={{background:"var(--s2)",border:"1px solid var(--bd)",borderRadius:16,padding:"16px",marginBottom:20}}>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"var(--faint)",fontFamily:"monospace",marginBottom:14}}>
+              Évolution 7 jours — {LABELS[metric]}
+            </div>
+            <div style={{display:"flex",gap:6,height:80,alignItems:"flex-end"}}>
+              {chartData.map((d, i) => (
+                <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                  <div style={{flex:1,width:"100%",display:"flex",alignItems:"flex-end"}}>
+                    <div style={{width:"100%",borderRadius:"4px 4px 0 0",background:COLORS[metric],opacity:0.85,
+                      height:`${Math.max((d.val/maxV)*100,4)}%`,transition:"height 0.5s ease",minHeight:d.val>0?4:2}} />
+                  </div>
+                  <div style={{fontSize:9,color:"var(--faint)",textTransform:"uppercase",fontFamily:"monospace"}}>{d.day}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* METRIC SELECTOR */}
       <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
         {METRICS.map(m => (
@@ -918,6 +1016,124 @@ function OrgAnalytics({ user }) {
   );
 }
 
+// ── QR SCANNER ──
+function QRScanner() {
+  const [result, setResult] = useState(null);
+  const [manual, setManual] = useState("");
+  const [cameraErr, setCameraErr] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const videoRef = React.useRef(null);
+  const rafRef = React.useRef(null);
+
+  const parse = (raw) => {
+    const p = raw.split('|');
+    if (p[0] !== 'SWISSOUT' || p.length < 6) return null;
+    return { eventId:p[1], eventTitle:p[2], date:p[3], name:p[4], ticketId:p[5] };
+  };
+
+  const stopCamera = () => {
+    cancelAnimationFrame(rafRef.current);
+    if (videoRef.current?.srcObject) videoRef.current.srcObject.getTracks().forEach(t => t.stop());
+    setScanning(false);
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment' } });
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+      setScanning(true);
+      if ('BarcodeDetector' in window) {
+        const det = new window.BarcodeDetector({ formats:['qr_code'] });
+        const scan = async () => {
+          try {
+            const r = await det.detect(videoRef.current);
+            if (r.length) { setResult(parse(r[0].rawValue)); stopCamera(); return; }
+          } catch {}
+          rafRef.current = requestAnimationFrame(scan);
+        };
+        rafRef.current = requestAnimationFrame(scan);
+      } else {
+        setCameraErr(true);
+      }
+    } catch { setCameraErr(true); }
+  };
+
+  React.useEffect(() => () => stopCamera(), []);
+
+  const info = result;
+  const inp = { width:"100%", padding:"11px 14px", borderRadius:12, background:"var(--s2)", border:"1px solid var(--bd)", fontFamily:"'DM Sans',sans-serif", fontSize:13, color:"var(--txt)", outline:"none" };
+
+  return (
+    <div style={{maxWidth:480}}>
+      <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,letterSpacing:"-0.4px",marginBottom:4}}>Scanner un billet</div>
+      <div style={{fontSize:13,color:"var(--muted)",marginBottom:20}}>Vérifiez les billets QR des participants</div>
+
+      {/* CAMERA */}
+      <div style={{background:"var(--s2)",borderRadius:16,overflow:"hidden",marginBottom:16,position:"relative",minHeight:180}}>
+        <video ref={videoRef} style={{width:"100%",display:scanning?"block":"none",borderRadius:16}} />
+        {!scanning && !cameraErr && (
+          <div style={{padding:"40px",textAlign:"center"}}>
+            <div style={{fontSize:36,marginBottom:12}}>📷</div>
+            <button onClick={startCamera}
+              style={{padding:"12px 24px",borderRadius:12,border:"none",background:"var(--accent)",color:"#fff",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,cursor:"pointer"}}>
+              Activer la caméra
+            </button>
+          </div>
+        )}
+        {scanning && (
+          <div style={{position:"absolute",bottom:12,left:"50%",transform:"translateX(-50%)"}}>
+            <button onClick={stopCamera} style={{padding:"8px 16px",borderRadius:10,border:"none",background:"rgba(0,0,0,0.6)",color:"#fff",fontSize:12,cursor:"pointer"}}>
+              Arrêter
+            </button>
+          </div>
+        )}
+        {cameraErr && (
+          <div style={{padding:"24px",textAlign:"center",color:"var(--muted)",fontSize:13}}>
+            Caméra non disponible. Utilisez la saisie manuelle.
+          </div>
+        )}
+      </div>
+
+      {/* MANUAL */}
+      <div style={{marginBottom:16}}>
+        <label style={{fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"var(--faint)",display:"block",marginBottom:6,fontFamily:"monospace"}}>
+          Saisie manuelle du code
+        </label>
+        <div style={{display:"flex",gap:8}}>
+          <input style={inp} value={manual} onChange={e => setManual(e.target.value)} placeholder="SWISSOUT|eventId|..." />
+          <button onClick={() => setResult(parse(manual))}
+            style={{padding:"11px 18px",borderRadius:12,border:"none",background:"var(--accent)",color:"#fff",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>
+            Vérifier
+          </button>
+        </div>
+      </div>
+
+      {/* RESULT */}
+      {result === null && manual.length > 5 && (
+        <div style={{padding:"16px",borderRadius:14,background:"rgba(255,59,47,0.1)",border:"1px solid rgba(255,59,47,0.2)",color:"#FF3B2F",fontSize:13,fontWeight:600}}>
+          ✕ Code invalide — Ce n'est pas un billet SwissOut.
+        </div>
+      )}
+      {result && (
+        <div style={{padding:"20px",borderRadius:14,background:"rgba(48,209,88,0.1)",border:"1px solid rgba(48,209,88,0.25)"}}>
+          <div style={{color:"#30D158",fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,marginBottom:12}}>✓ Billet valide</div>
+          {[["Participant", result.name], ["Événement", result.eventTitle], ["Date", result.date], ["ID billet", result.ticketId?.slice(0,8)+"..."]].map(([l,v]) => (
+            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid rgba(48,209,88,0.15)",fontSize:13}}>
+              <span style={{color:"var(--muted)"}}>{l}</span>
+              <span style={{fontWeight:600}}>{v}</span>
+            </div>
+          ))}
+          <button onClick={() => { setResult(null); setManual(""); }}
+            style={{marginTop:14,width:"100%",padding:"11px",borderRadius:12,border:"none",background:"rgba(48,209,88,0.2)",color:"#30D158",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+            Scanner un autre billet
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── ORG DASHBOARD ──
 function OrgDashboard({ user, onLogout }) {
   const [tab, setTab] = useState("events");
@@ -946,7 +1162,7 @@ function OrgDashboard({ user, onLogout }) {
         <div className="dash-logo">Swiss<em>Out</em></div>
         <div className="dash-role">Espace Organisateur</div>
         <div className="dash-nav">
-          {[["events","📅","Mes événements"],["submit","➕","Soumettre un event"],["stats","📊","Statistiques"]].map(([id,icon,label]) => (
+          {[["events","📅","Mes événements"],["submit","➕","Soumettre un event"],["stats","📊","Statistiques"],["scanner","📷","Scanner"]].map(([id,icon,label]) => (
             <div key={id} className={`dash-nav-item${tab === id ? " active" : ""}`} onClick={() => setTab(id)}>
               <span className="ni">{icon}</span>{label}
             </div>
@@ -960,7 +1176,7 @@ function OrgDashboard({ user, onLogout }) {
       </div>
       <div className="dash-main">
         <div className="dash-topbar">
-          <div className="dash-title">{tab === "events" ? "Mes événements" : tab === "submit" ? "Soumettre un événement" : "Statistiques"}</div>
+          <div className="dash-title">{tab === "events" ? "Mes événements" : tab === "submit" ? "Soumettre un événement" : tab === "stats" ? "Statistiques" : "Scanner billets"}</div>
           {tab === "events" && <button className="dash-add-btn" onClick={() => setTab("submit")}>+ Nouvel événement</button>}
         </div>
         {tab === "events" && (
@@ -986,6 +1202,7 @@ function OrgDashboard({ user, onLogout }) {
         )}
         {tab === "submit" && <EventForm user={user} onSuccess={() => setTab("events")} />}
         {tab === "stats" && <OrgAnalytics user={user} />}
+        {tab === "scanner" && <QRScanner />}
       </div>
     </div>
   );

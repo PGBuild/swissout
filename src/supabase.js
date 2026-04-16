@@ -37,3 +37,27 @@ export async function trackEvent(evenementId, type) {
     await supabase.from('event_stats').insert({ evenement_id: evenementId, type });
   } catch(e) {}
 }
+
+export async function fetchStats7Days(evenementIds) {
+  if (!evenementIds.length) return {};
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('event_stats')
+    .select('type, created_at')
+    .in('evenement_id', evenementIds)
+    .gte('created_at', since);
+  if (error) return {};
+  const days = {};
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+    days[d.toISOString().split('T')[0]] = { views:0, clicks:0, saves:0, participations:0 };
+  }
+  data.forEach(row => {
+    const day = row.created_at?.split('T')[0];
+    if (day && days[day]) {
+      const k = row.type==='view'?'views':row.type==='click'?'clicks':row.type==='save'?'saves':'participations';
+      days[day][k]++;
+    }
+  });
+  return days;
+}
