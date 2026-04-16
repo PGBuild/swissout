@@ -32,10 +32,23 @@ export async function fetchStatsOrganisateur(evenementIds) {
   return stats;
 }
 
-export async function trackEvent(evenementId, type) {
+export async function trackEvent(evenementId, type, source = 'direct') {
   try {
-    await supabase.from('event_stats').insert({ evenement_id: evenementId, type });
+    await supabase.from('event_stats').insert({ evenement_id: evenementId, type, source });
   } catch(e) {}
+}
+
+export async function fetchSourceStats(evenementIds) {
+  if (!evenementIds.length) return {};
+  const { data } = await supabase
+    .from('event_stats')
+    .select('evenement_id, type, source')
+    .in('evenement_id', evenementIds)
+    .eq('type', 'view');
+  if (!data) return {};
+  const result = { direct:0, search:0, browse:0, share:0 };
+  data.forEach(r => { const s = r.source || 'direct'; if (result[s] !== undefined) result[s]++; });
+  return result;
 }
 
 export async function fetchReviews(eventIds) {

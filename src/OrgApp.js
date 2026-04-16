@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { supabase, fetchStatsOrganisateur, fetchStats7Days } from './supabase';
+import { supabase, fetchStatsOrganisateur, fetchStats7Days, fetchSourceStats } from './supabase';
 
 // ── MOCK DATA ──
 const MOCK_ORGANISATEURS = [
@@ -585,7 +585,7 @@ function EventForm({ user, onSuccess }) {
     date_debut:"", heure:"", description:"",
     tags:"", lien_billetterie:"", prix:"",
     instagram_url:"", facebook_url:"",
-    recurrence:"once",
+    recurrence:"once", ticket_price:"",
   });
   const [coverFile, setCoverFile] = useState(null);
   const [coverPreview, setCoverPreview] = useState(null);
@@ -644,7 +644,9 @@ function EventForm({ user, onSuccess }) {
         latitude: lat || 46.9481, longitude: lng || 7.4474,
         heure: form.heure, description: form.description,
         tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-        lien_billetterie: form.lien_billetterie || null, prix: form.prix || null,
+        lien_billetterie: form.lien_billetterie || null,
+        prix: form.ticket_price ? `${form.ticket_price} CHF` : (form.prix || null),
+        ticket_price: parseFloat(form.ticket_price) || null,
         instagram_url: form.instagram_url || null, facebook_url: form.facebook_url || null,
         cover_url: coverUrl, recurrence: form.recurrence,
         statut: 'en_attente', auto_approve_at: autoApproveAt,
@@ -772,16 +774,37 @@ function EventForm({ user, onSuccess }) {
       {/* BILLETTERIE */}
       <div style={{background:"var(--s1)",border:"1px solid var(--bd)",borderRadius:18,padding:"20px 20px",marginBottom:14}}>
         <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,marginBottom:16}}>🎟️ Billetterie</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
           <div>
             <label style={labelStyle}>Lien billetterie</label>
             <input style={inputStyle("lien_billetterie")} placeholder="https://..." value={form.lien_billetterie} onChange={e => set("lien_billetterie", e.target.value)} />
           </div>
           <div>
-            <label style={labelStyle}>Prix</label>
-            <input style={inputStyle("prix")} placeholder="Ex: Gratuit / 20 CHF" value={form.prix} onChange={e => set("prix", e.target.value)} />
+            <label style={labelStyle}>Prix du billet (CHF)</label>
+            <input type="number" min="0" step="0.5" style={inputStyle("ticket_price")} placeholder="Ex: 25" value={form.ticket_price} onChange={e => set("ticket_price", e.target.value)} />
           </div>
         </div>
+        {parseFloat(form.ticket_price) > 0 && (
+          <div style={{background:"rgba(124,58,237,0.06)",border:"1px solid rgba(124,58,237,0.2)",borderRadius:12,padding:"12px 14px"}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,marginBottom:8,color:"var(--accent)"}}>Simulation de commission SwissOut</div>
+            <div style={{display:"flex",flexDirection:"column",gap:5,fontSize:12,fontFamily:"monospace"}}>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span style={{color:"var(--muted)"}}>Prix billet :</span>
+                <span style={{fontWeight:700}}>{parseFloat(form.ticket_price).toFixed(2)} CHF</span>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span style={{color:"var(--muted)"}}>Commission SwissOut (5%) :</span>
+                <span style={{color:"#FF3B2F"}}>− {(parseFloat(form.ticket_price)*0.05).toFixed(2)} CHF</span>
+              </div>
+              <div style={{height:1,background:"var(--bd)",margin:"4px 0"}} />
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span style={{fontWeight:700}}>Net organisateur :</span>
+                <span style={{color:"#30D158",fontWeight:700}}>{(parseFloat(form.ticket_price)*0.95).toFixed(2)} CHF</span>
+              </div>
+            </div>
+            <div style={{fontSize:10,color:"var(--faint)",marginTop:8,fontFamily:"monospace"}}>Billetterie propulsée par SwissOut · Paiement sécurisé</div>
+          </div>
+        )}
       </div>
 
       {/* PHOTO DE COUVERTURE */}
@@ -861,10 +884,11 @@ function EventForm({ user, onSuccess }) {
 
 
 // ── ORG ANALYTICS ──
-function OrgAnalytics({ user }) {
+function OrgAnalytics({ user, isPremium, onUpgrade }) {
   const [events, setEvents] = useState([]);
   const [stats, setStats] = useState({});
   const [chart, setChart] = useState({});
+  const [sources, setSources] = useState({});
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState("views");
 
@@ -879,9 +903,10 @@ function OrgAnalytics({ user }) {
         if (evts && evts.length > 0) {
           setEvents(evts);
           const ids = evts.map(e => e.id);
-          const [s, c] = await Promise.all([fetchStatsOrganisateur(ids), fetchStats7Days(ids)]);
+          const [s, c, src] = await Promise.all([fetchStatsOrganisateur(ids), fetchStats7Days(ids), fetchSourceStats(ids)]);
           setStats(s);
           setChart(c);
+          setSources(src);
         }
       } catch(e) { console.error(e); }
       setLoading(false);
@@ -983,16 +1008,20 @@ function OrgAnalytics({ user }) {
       </div>
 
       {/* EVENTS LIST */}
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
         {events.map((e, i) => {
           const s = stats[e.id] || {};
           const val = s[metric] || 0;
           const pct = maxVal > 0 ? (val/maxVal)*100 : 0;
+          const conv = s.views ? ((s.participations/s.views)*100).toFixed(1) : '0.0';
           return (
             <div key={e.id} style={{background:"var(--s2)",borderRadius:14,padding:"14px 16px",border:"1px solid var(--bd)"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                 <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14}}>{e.titre}</div>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:COLORS[metric]}}>{val}</div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  {isPremium && <div style={{fontSize:10,color:"#30D158",fontFamily:"monospace",fontWeight:700}}>{conv}% conv.</div>}
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:COLORS[metric]}}>{val}</div>
+                </div>
               </div>
               <div style={{display:"flex",gap:12,marginBottom:10}}>
                 <span style={{fontSize:10,color:"var(--faint)",fontFamily:"monospace"}}>📅 {e.date_debut}</span>
@@ -1012,6 +1041,91 @@ function OrgAnalytics({ user }) {
           );
         })}
       </div>
+
+      {/* ── ANALYTICS AVANCÉS (PREMIUM) ── */}
+      {isPremium ? (
+        <div style={{borderTop:"1px solid var(--bd)",paddingTop:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16}}>Analytics avancés</div>
+            <div style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:"linear-gradient(135deg,#7C3AED,#A78BFA)",color:"#fff",fontWeight:700,letterSpacing:"0.5px"}}>⭐ PREMIUM</div>
+          </div>
+
+          {/* Taux de conversion global */}
+          {(() => {
+            const tv = totals.views, tp = totals.participations;
+            const rate = tv > 0 ? ((tp/tv)*100).toFixed(1) : '0.0';
+            const bestDay = Object.entries(chart).reduce((best, [day, c]) => c[metric] > (best.val||0) ? {day, val:c[metric]} : best, {});
+            const bestDayLabel = bestDay.day ? new Date(bestDay.day+'T12:00:00').toLocaleDateString('fr', {weekday:'long', day:'numeric', month:'short'}) : '—';
+            return (
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+                <div style={{background:"var(--s2)",borderRadius:14,padding:"14px",border:"1px solid var(--bd)"}}>
+                  <div style={{fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"var(--faint)",fontFamily:"monospace",marginBottom:4}}>Taux de conversion</div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:26,color:"#30D158"}}>{rate}%</div>
+                  <div style={{fontSize:10,color:"var(--faint)"}}>Vues → Participations</div>
+                </div>
+                <div style={{background:"var(--s2)",borderRadius:14,padding:"14px",border:"1px solid var(--bd)"}}>
+                  <div style={{fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"var(--faint)",fontFamily:"monospace",marginBottom:4}}>Meilleur jour</div>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14,color:"#0A84FF",marginTop:4}}>{bestDayLabel}</div>
+                  <div style={{fontSize:10,color:"var(--faint)"}}>{bestDay.val||0} {LABELS[metric]?.toLowerCase()}</div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Provenance */}
+          {(() => {
+            const total = Object.values(sources).reduce((s,v) => s+v, 0) || 1;
+            const labels = { direct:"Direct", search:"Recherche", browse:"Navigation", share:"Partage" };
+            const colors = { direct:"#7C3AED", search:"#0A84FF", browse:"#30D158", share:"#FF9F0A" };
+            return (
+              <div style={{background:"var(--s2)",borderRadius:14,padding:"14px 16px",marginBottom:16,border:"1px solid var(--bd)"}}>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"var(--faint)",fontFamily:"monospace",marginBottom:12}}>Provenance des visiteurs</div>
+                {Object.entries(sources).filter(([,v]) => v > 0).map(([src, cnt]) => (
+                  <div key={src} style={{marginBottom:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
+                      <span>{labels[src]||src}</span>
+                      <span style={{fontWeight:700,color:colors[src]}}>{cnt} ({((cnt/total)*100).toFixed(0)}%)</span>
+                    </div>
+                    <div style={{height:4,background:"var(--bd2)",borderRadius:2}}>
+                      <div style={{height:"100%",width:`${(cnt/total)*100}%`,background:colors[src],borderRadius:2,transition:"width 0.6s"}} />
+                    </div>
+                  </div>
+                ))}
+                {Object.values(sources).every(v => v === 0) && (
+                  <div style={{fontSize:12,color:"var(--faint)"}}>Données collectées au fur et à mesure des prochaines visites.</div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Export CSV */}
+          <button onClick={() => {
+            const rows = [['Événement','Date','Statut','Vues','Clics','Sauvés','Participations','Conversion']];
+            events.forEach(e => {
+              const s = stats[e.id]||{};
+              const rate = s.views ? ((s.participations/s.views)*100).toFixed(1)+'%' : '0%';
+              rows.push([e.titre, e.date_debut, e.statut, s.views||0, s.clicks||0, s.saves||0, s.participations||0, rate]);
+            });
+            const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+            const a = document.createElement('a');
+            a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+            a.download = `swissout-stats-${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+          }} style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid var(--bd2)",background:"transparent",color:"var(--txt)",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exporter CSV des statistiques
+          </button>
+        </div>
+      ) : (
+        <div style={{borderTop:"1px solid var(--bd)",paddingTop:20,textAlign:"center"}}>
+          <div style={{fontSize:32,marginBottom:8}}>🔒</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:15,marginBottom:6}}>Analytics avancés</div>
+          <div style={{fontSize:12,color:"var(--muted)",marginBottom:16}}>Conversion, provenance, meilleur jour, export CSV — disponibles en Premium</div>
+          <button onClick={onUpgrade} style={{padding:"11px 20px",borderRadius:12,border:"none",background:"var(--accent)",color:"#fff",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+            ⭐ Passer Premium — 19 CHF/mois
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1141,6 +1255,9 @@ function OrgDashboard({ user, onLogout }) {
   const [sharingEvent, setSharingEvent] = useState(null);
   const [storyCopied, setStoryCopied] = useState(false);
   const [embedCopied, setEmbedCopied] = useState(false);
+  const [isPremium, setIsPremium] = useState(() => localStorage.getItem(`swo_premium_${user?.id}`) === 'true');
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [spotlightId, setSpotlightId] = useState(null);
 
   useEffect(() => {
     async function loadMyEvents() {
@@ -1158,6 +1275,7 @@ function OrgDashboard({ user, onLogout }) {
   const approuves = myEvents.filter(e => e.statut === 'approuve').length;
   const enAttente = myEvents.filter(e => e.statut === 'en_attente').length;
   return (
+    <>
     <div className="dash">
       <div className="dash-side">
         <div className="dash-logo">Swiss<em>Out</em></div>
@@ -1169,6 +1287,16 @@ function OrgDashboard({ user, onLogout }) {
             </div>
           ))}
         </div>
+        {isPremium ? (
+          <div style={{margin:"8px 12px",padding:"8px 12px",borderRadius:10,background:"linear-gradient(135deg,#7C3AED,#A78BFA)",textAlign:"center",fontSize:11,fontWeight:800,color:"#fff",letterSpacing:"0.5px"}}>
+            ⭐ PREMIUM ACTIF
+          </div>
+        ) : (
+          <button onClick={() => setShowPremiumModal(true)}
+            style={{margin:"8px 12px",padding:"8px 12px",borderRadius:10,border:"1px solid rgba(255,159,10,0.4)",background:"rgba(255,159,10,0.08)",color:"#FF9F0A",fontSize:11,fontWeight:700,cursor:"pointer",width:"calc(100% - 24px)",textAlign:"center"}}>
+            ⭐ Passer Premium — 19 CHF/mois
+          </button>
+        )}
         <div className="dash-avatar">
           <div className="dash-av-icon">{user.nom[0]}</div>
           <div><div className="dash-av-name">{user.nom}</div><div className="dash-av-role">{user.organisation || "Organisateur"}</div></div>
@@ -1224,14 +1352,37 @@ function OrgDashboard({ user, onLogout }) {
                         <div className="ec-title">{e.titre}</div>
                         <div className="ec-meta"><span>📅 {e.date_debut}</span><span>🏷 {e.categorie}</span></div>
                       </div>
-                      <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
                         <div className={`ec-status ${e.statut}`}>{e.statut === "approuve" ? "✓ Approuvé" : "⏳ En attente"}</div>
+                        <button onClick={() => setSpotlightId(spotlightId === e.id ? null : e.id)}
+                          title="Mettre en avant"
+                          style={{padding:"4px 8px",borderRadius:7,border:"1px solid rgba(255,159,10,0.35)",background:"rgba(255,159,10,0.08)",color:"#FF9F0A",fontSize:10,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap"}}>
+                          ★
+                        </button>
                         <button onClick={() => setSharingEvent(isOpen ? null : e.id)}
                           style={{padding:"5px 10px",borderRadius:8,border:"1px solid var(--bd2)",background:"transparent",color:"var(--muted)",fontSize:11,cursor:"pointer",fontFamily:"monospace",whiteSpace:"nowrap"}}>
                           {isOpen ? "✕" : "Partager"}
                         </button>
                       </div>
                     </div>
+                    {spotlightId === e.id && (
+                      <div style={{background:"rgba(255,159,10,0.06)",border:"1px solid rgba(255,159,10,0.25)",borderRadius:12,padding:"14px 16px",marginTop:-2,marginBottom:8}}>
+                        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14,color:"#FF9F0A",marginBottom:6}}>★ Mettre en avant</div>
+                        <div style={{fontSize:12,color:"var(--muted)",marginBottom:10}}>Votre événement apparaît en premier dans toute l'application pendant 7 jours.</div>
+                        <div style={{display:"flex",gap:16,marginBottom:12}}>
+                          {[["9 CHF","1 semaine"],["22 CHF","1 mois"],["69 CHF","3 mois"]].map(([price,period]) => (
+                            <div key={period} style={{flex:1,textAlign:"center",padding:"10px 6px",borderRadius:10,border:"1px solid rgba(255,159,10,0.3)",background:"rgba(255,159,10,0.06)"}}>
+                              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:16,color:"#FF9F0A"}}>{price}</div>
+                              <div style={{fontSize:10,color:"var(--faint)"}}>{period}</div>
+                            </div>
+                          ))}
+                        </div>
+                        <a href="mailto:hello@swissout.ch?subject=Demande mise en avant"
+                          style={{display:"block",padding:"10px",borderRadius:10,border:"none",background:"#FF9F0A",color:"#fff",fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,textAlign:"center",textDecoration:"none"}}>
+                          Contacter SwissOut pour activer →
+                        </a>
+                      </div>
+                    )}
                     {isOpen && (
                       <div style={{background:"var(--s2)",border:"1px solid var(--bd)",borderRadius:12,padding:"14px 16px",marginTop:-2,marginBottom:8}}>
                         <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,marginBottom:12,color:"var(--muted)"}}>PARTAGER CET ÉVÉNEMENT</div>
@@ -1265,11 +1416,80 @@ function OrgDashboard({ user, onLogout }) {
             </div>
           </>
         )}
-        {tab === "submit" && <EventForm user={user} onSuccess={() => setTab("events")} />}
-        {tab === "stats" && <OrgAnalytics user={user} />}
-        {tab === "scanner" && <QRScanner />}
+        {tab === "submit" && (() => {
+          const active = myEvents.filter(e => e.statut !== 'refuse').length;
+          if (!isPremium && active >= 3) return (
+            <div style={{padding:"40px 24px",textAlign:"center"}}>
+              <div style={{fontSize:36,marginBottom:12}}>🔒</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,marginBottom:8}}>Limite atteinte</div>
+              <div style={{fontSize:13,color:"var(--muted)",marginBottom:20}}>Le plan Gratuit est limité à 3 événements actifs.<br/>Passez Premium pour des événements illimités.</div>
+              <button onClick={() => setShowPremiumModal(true)}
+                style={{padding:"13px 24px",borderRadius:14,border:"none",background:"var(--accent)",color:"#fff",fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14,cursor:"pointer"}}>
+                ⭐ Passer Premium — 19 CHF/mois
+              </button>
+            </div>
+          );
+          return <EventForm user={user} onSuccess={() => setTab("events")} />;
+        })()}
+        {tab === "stats" && <OrgAnalytics user={user} isPremium={isPremium} onUpgrade={() => setShowPremiumModal(true)} />}
+        {tab === "scanner" && (!isPremium ? (
+          <div style={{padding:"40px 24px",textAlign:"center"}}>
+            <div style={{fontSize:36,marginBottom:12}}>🔒</div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:18,marginBottom:8}}>Fonctionnalité Premium</div>
+            <div style={{fontSize:13,color:"var(--muted)",marginBottom:20}}>Le scanner QR est réservé aux organisateurs Premium.</div>
+            <button onClick={() => setShowPremiumModal(true)} style={{padding:"13px 24px",borderRadius:14,border:"none",background:"var(--accent)",color:"#fff",fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14,cursor:"pointer"}}>⭐ Passer Premium</button>
+          </div>
+        ) : <QRScanner />)}
       </div>
     </div>
+
+    {/* PREMIUM MODAL */}
+
+    {showPremiumModal && (
+      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(12px)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
+        onClick={() => setShowPremiumModal(false)}>
+        <div style={{background:"var(--s1)",border:"1px solid var(--bd2)",borderRadius:24,padding:"28px 24px",maxWidth:380,width:"100%"}}
+          onClick={e => e.stopPropagation()}>
+          <div style={{textAlign:"center",marginBottom:20}}>
+            <div style={{fontSize:36,marginBottom:8}}>⭐</div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,letterSpacing:"-0.4px",marginBottom:4}}>SwissOut Premium</div>
+            <div style={{fontSize:13,color:"var(--muted)"}}>19 CHF / mois · Sans engagement</div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+            {[
+              ["✓","Événements illimités","(vs 3 en plan Gratuit)"],
+              ["✓","Statistiques avancées","(conversion, provenance, export CSV)"],
+              ["✓","Mise en avant prioritaire","(apparaît en premier)"],
+              ["✓","Widget embed","(intégration sur votre site)"],
+              ["✓","Scanner QR billets","(vérification à l'entrée)"],
+            ].map(([icon,title,sub]) => (
+              <div key={title} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"8px 0",borderBottom:"1px solid var(--bd)"}}>
+                <span style={{color:"#30D158",fontWeight:800,fontSize:14,marginTop:1}}>{icon}</span>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600}}>{title}</div>
+                  <div style={{fontSize:11,color:"var(--faint)"}}>{sub}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <a href="mailto:hello@swissout.ch?subject=Abonnement Premium"
+              style={{display:"block",padding:"14px",borderRadius:14,border:"none",background:"var(--accent)",color:"#fff",fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14,textAlign:"center",textDecoration:"none"}}>
+              S'abonner — 19 CHF/mois →
+            </a>
+            <button onClick={() => {
+              const v = !isPremium;
+              setIsPremium(v);
+              localStorage.setItem(`swo_premium_${user?.id}`, v);
+              setShowPremiumModal(false);
+            }} style={{padding:"11px",borderRadius:12,border:"1px solid var(--bd2)",background:"transparent",color:"var(--muted)",fontFamily:"'DM Sans',sans-serif",fontSize:12,cursor:"pointer"}}>
+              {isPremium ? "Désactiver le mode démo" : "Simuler Premium (mode démo)"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

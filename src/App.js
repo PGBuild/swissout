@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { fetchEvenements, trackEvent, fetchReviews, submitReview, subscribeNewsletter, unsubscribeNewsletter } from './supabase';
+import { fetchEvenements, trackEvent, fetchReviews, submitReview, subscribeNewsletter, unsubscribeNewsletter, fetchSourceStats } from './supabase';
 
 // ── TRANSLATIONS ──
 const T = {
@@ -650,6 +650,8 @@ export default function SwissOut() {
     instagram_url: e.instagram_url || null,
     facebook_url: e.facebook_url || null,
     cover_url: e.cover_url || null,
+    is_sponsored: !!e.is_sponsored,
+    ticket_price: e.ticket_price || null,
   })) : EVENTS_RAW).map(e => ({
     ...e,
     km: userPos ? Math.round(getDistance(userPos.lat, userPos.lng, e.lat, e.lng)) : null,
@@ -669,7 +671,10 @@ export default function SwissOut() {
       (e.km === null || e.km <= radius) &&
       isWithinPeriod(e.date, timePeriod)
     )
-    .sort((a, b) => (a.km ?? 999) - (b.km ?? 999));
+    .sort((a, b) => {
+      if (!!a.is_sponsored !== !!b.is_sponsored) return a.is_sponsored ? -1 : 1;
+      return (a.km ?? 999) - (b.km ?? 999);
+    });
 
   const savedEvents  = eventsWithDist.filter(e => saved.includes(e.id));
   const yesEvents    = eventsWithDist.filter(e => participation[e.id] === "yes");
@@ -761,7 +766,7 @@ export default function SwissOut() {
   ];
 
   const EventCard = ({ event }) => (
-    <div className="card" onClick={() => { setSelected(event); trackEvent(event.id, 'view'); }}>
+    <div className="card" onClick={() => { setSelected(event); trackEvent(event.id, 'view', search.trim() ? 'search' : 'browse'); }}>
       {event.cover_url && (
         <img src={event.cover_url} alt="" style={{ width:"100%", height:130, objectFit:"cover", display:"block" }} />
       )}
@@ -769,6 +774,9 @@ export default function SwissOut() {
         <div className="card-row1">
           <div className="card-datetime" style={{ fontSize:11, color:"var(--faint)", alignSelf:"center" }}>{event.date} · {event.time}</div>
           <div className="card-right">
+            {event.is_sponsored && (
+              <div style={{ display:"inline-block", padding:"2px 8px", borderRadius:6, background:"#FF9F0A", color:"#fff", fontSize:9, fontWeight:800, marginBottom:4, letterSpacing:"0.4px", textTransform:"uppercase" }}>★ Sponsorisé</div>
+            )}
             {formatPrix(event.prix) && (
               <div style={{ display:"inline-block", padding:"2px 9px", borderRadius:10, background:"var(--s2)", border:"1px solid var(--bd)", color:"var(--muted)", fontSize:10, fontWeight:700, marginBottom:4, textAlign:"right" }}>
                 {formatPrix(event.prix)}
@@ -808,6 +816,7 @@ export default function SwissOut() {
                 fontSize:12, fontWeight:700, textDecoration:"none", fontFamily:"'DM Sans',sans-serif" }}>
               Acheter des billets
             </a>
+            <div style={{ textAlign:"center", fontSize:9, color:"var(--faint)", marginTop:3, fontFamily:"monospace" }}>Billetterie propulsée par SwissOut</div>
           </div>
         )}
         {(event.instagram_url || event.facebook_url) && (
@@ -1350,13 +1359,16 @@ export default function SwissOut() {
                   </button>
                 </div>
                 {selected.lien_billetterie && (
-                  <a href={selected.lien_billetterie} target="_blank" rel="noopener noreferrer"
-                    style={{display:"block",width:"100%",padding:"13px",borderRadius:14,
-                      border:"1px solid var(--bd2)",background:"transparent",color:"var(--txt)",
-                      fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,
-                      textAlign:"center",textDecoration:"none",boxSizing:"border-box"}}>
-                    Acheter des billets
-                  </a>
+                  <div>
+                    <a href={selected.lien_billetterie} target="_blank" rel="noopener noreferrer"
+                      style={{display:"block",width:"100%",padding:"13px",borderRadius:14,
+                        border:"1px solid var(--bd2)",background:"transparent",color:"var(--txt)",
+                        fontFamily:"'DM Sans',sans-serif",fontSize:14,fontWeight:600,
+                        textAlign:"center",textDecoration:"none",boxSizing:"border-box"}}>
+                      Acheter des billets
+                    </a>
+                    <div style={{textAlign:"center",fontSize:10,color:"var(--faint)",marginTop:2,fontFamily:"monospace"}}>Billetterie propulsée par SwissOut</div>
+                  </div>
                 )}
                 {(() => {
                   const mapsQuery = encodeURIComponent([selected.address, selected.location, 'Suisse'].filter(Boolean).join(', '));
