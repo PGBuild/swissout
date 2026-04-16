@@ -58,6 +58,16 @@ const T = {
     gpsActive: "Position GPS",
     gpsError: "GPS non dispo · Moutier (fallback)",
     retry: "Réessayer",
+    search: "Rechercher un événement, une ville...",
+    profile: "Profil",
+    share: "Partager",
+    copyLink: "Copier le lien",
+    copied: "Copié !",
+    whatsapp: "WhatsApp",
+    notifEnable: "Activer les rappels push",
+    notifActive: "✓ Rappels activés",
+    editProfile: "Modifier mon profil",
+    saveProfile: "Enregistrer",
   },
   en: {
     tagline: "Discover Switzerland around you",
@@ -114,6 +124,16 @@ const T = {
     gpsActive: "GPS active",
     gpsError: "GPS unavailable · Moutier (fallback)",
     retry: "Retry",
+    search: "Search event, city...",
+    profile: "Profile",
+    share: "Share",
+    copyLink: "Copy link",
+    copied: "Copied!",
+    whatsapp: "WhatsApp",
+    notifEnable: "Enable push reminders",
+    notifActive: "✓ Reminders on",
+    editProfile: "Edit profile",
+    saveProfile: "Save",
   },
   de: {
     tagline: "Entdecke die Schweiz um dich herum",
@@ -170,6 +190,16 @@ const T = {
     gpsActive: "GPS aktiv",
     gpsError: "GPS nicht verfügbar · Moutier",
     retry: "Erneut versuchen",
+    search: "Event oder Stadt suchen...",
+    profile: "Profil",
+    share: "Teilen",
+    copyLink: "Link kopieren",
+    copied: "Kopiert!",
+    whatsapp: "WhatsApp",
+    notifEnable: "Push-Erinnerungen aktivieren",
+    notifActive: "✓ Erinnerungen aktiv",
+    editProfile: "Profil bearbeiten",
+    saveProfile: "Speichern",
   },
   it: {
     tagline: "Scopri la Svizzera intorno a te",
@@ -226,6 +256,16 @@ const T = {
     gpsActive: "GPS attivo",
     gpsError: "GPS non disponibile · Moutier",
     retry: "Riprova",
+    search: "Cerca evento, città...",
+    profile: "Profilo",
+    share: "Condividi",
+    copyLink: "Copia link",
+    copied: "Copiato!",
+    whatsapp: "WhatsApp",
+    notifEnable: "Attiva promemoria push",
+    notifActive: "✓ Promemoria attivi",
+    editProfile: "Modifica profilo",
+    saveProfile: "Salva",
   },
 };
 
@@ -384,6 +424,8 @@ input[type=range]{position:absolute;inset:-10px 0;width:100%;opacity:0;cursor:po
 .btn-save{flex:1;padding:10px;border-radius:12px;border:1px solid var(--bd2);background:transparent;color:var(--faint);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:5px;}
 .btn-save:hover{background:var(--s2);color:var(--txt)}
 .btn-save.saved{border-color:var(--accent);color:var(--accent);background:rgba(124,58,237,0.08)}
+.btn-share{width:36px;flex-shrink:0;padding:10px 8px;border-radius:12px;border:1px solid var(--bd2);background:transparent;color:var(--faint);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;}
+.btn-share:hover{background:var(--s2);color:var(--txt)}
 .btn-go{flex:2;padding:10px;border-radius:12px;border:none;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;color:#fff;letter-spacing:0.3px;display:flex;align-items:center;justify-content:center;gap:5px;transition:all 0.2s;}
 .btn-go:hover{filter:brightness(1.15);transform:scale(1.02)}
 
@@ -507,11 +549,21 @@ export default function SwissOut() {
   const [geoStatus, setGeoStatus]   = useState("idle");
   const [scrolled, setScrolled]     = useState(false);
   const [eventsFromDB, setEventsFromDB] = useState([]);
+  const [search, setSearch]             = useState("");
+  const [shareEvent, setShareEvent]     = useState(null);
+  const [shareCopied, setShareCopied]   = useState(false);
+  const [notifGranted, setNotifGranted] = useState(() => { try { return Notification?.permission === 'granted'; } catch { return false; } });
+  const [profileSubTab, setProfileSubTab] = useState("saved");
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileDraft, setProfileDraft] = useState({});
 
   const handleOnboard = () => {
     const n = nameInput.trim();
     if (!n || !gender || !age) return;
     localStorage.setItem('swissout_profile', JSON.stringify({ userName: n, gender, age, phone, lang }));
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().then(p => { if (p === 'granted') setNotifGranted(true); });
+    }
     setObExit(true);
     setTimeout(() => setUserName(n), 480);
   };
@@ -530,6 +582,32 @@ export default function SwissOut() {
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
+  useEffect(() => {
+    if (!notifGranted || !eventsFromDB.length) return;
+    const timers = [];
+    eventsFromDB.forEach(e => {
+      if (!saved.includes(e.id)) return;
+      try {
+        const dt = new Date(`${e.date_debut}T${e.heure || '00:00'}`);
+        const notifAt = new Date(dt.getTime() - 60 * 60 * 1000);
+        const ms = notifAt.getTime() - Date.now();
+        if (ms > 0 && ms < 24 * 60 * 60 * 1000) {
+          timers.push(setTimeout(() => {
+            new Notification('SwissOut — Rappel', {
+              body: `${e.titre} commence dans 1h à ${e.ville}`,
+              icon: '/logo192.png',
+            });
+          }, ms));
+        }
+      } catch {}
+    });
+    return () => timers.forEach(clearTimeout);
+  }, [saved, eventsFromDB, notifGranted]);
 
   const requestGeo = () => {
     if (!navigator.geolocation) { setGeoStatus("error"); setCityName("N/A"); return; }
@@ -577,7 +655,25 @@ export default function SwissOut() {
     )
     .sort((a, b) => (a.km ?? 999) - (b.km ?? 999));
 
-  const savedEvents = eventsWithDist.filter(e => saved.includes(e.id));
+  const savedEvents  = eventsWithDist.filter(e => saved.includes(e.id));
+  const yesEvents    = eventsWithDist.filter(e => participation[e.id] === "yes");
+  const maybeEvents  = eventsWithDist.filter(e => participation[e.id] === "maybe");
+  const searchFiltered = search.trim()
+    ? filtered.filter(e => {
+        const q = search.toLowerCase();
+        return e.title?.toLowerCase().includes(q) || e.location?.toLowerCase().includes(q) || e.desc?.toLowerCase().includes(q);
+      })
+    : filtered;
+
+  const saveProfile = () => {
+    const n = profileDraft.name?.trim() || userName;
+    setUserName(n); setNameInput(n);
+    setPhone(profileDraft.phone ?? phone);
+    setAge(profileDraft.age || age);
+    setGender(profileDraft.gender || gender);
+    localStorage.setItem('swissout_profile', JSON.stringify({ userName: n, gender: profileDraft.gender || gender, age: profileDraft.age || age, phone: profileDraft.phone ?? phone, lang }));
+    setEditingProfile(false);
+  };
 
   const toggleParticipation = (id, status, ev) => {
     ev?.stopPropagation();
@@ -626,6 +722,10 @@ export default function SwissOut() {
         <div className="card-btns">
           <button className={`btn-save${saved.includes(event.id) ? " saved" : ""}`} onClick={e => toggleSave(event.id, e)}>
             {saved.includes(event.id) ? t.saved : t.save}
+          </button>
+          <button className="btn-share" onClick={e => { e.stopPropagation(); setShareEvent(event); }}
+            title={t.share}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           </button>
           <button className="btn-go" style={{ background: event.color }} onClick={e => { e.stopPropagation(); setSelected(event); trackEvent(event.id, 'click'); }}>
             {t.seeEvent}
@@ -896,18 +996,36 @@ export default function SwissOut() {
         {/* EXPLORE */}
         {tab === "explore" && (
           <>
-            <div className="sec-head">
-              <span className="sec-title">{cat === "all" ? t.around : CATS.find(c => c.id === cat)?.label}</span>
-              <span className="sec-count">{filtered.length} {filtered.length !== 1 ? t.events : t.event}</span>
+            {/* SEARCH */}
+            <div style={{ padding:"10px 22px 4px" }}>
+              <div style={{ position:"relative" }}>
+                <svg style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"var(--faint)", pointerEvents:"none" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder={t.search}
+                  style={{ width:"100%", padding:"10px 36px", borderRadius:12, border:"1px solid var(--bd)", background:"var(--s2)", fontSize:13, color:"var(--txt)", outline:"none", fontFamily:"'DM Sans',sans-serif", transition:"border-color 0.2s" }}
+                  onFocus={e => e.target.style.borderColor="var(--accent)"}
+                  onBlur={e => e.target.style.borderColor="var(--bd)"}
+                />
+                {search && (
+                  <button onClick={() => setSearch("")}
+                    style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"var(--faint)", cursor:"pointer", fontSize:14, padding:"2px 4px" }}>
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
-            {filtered.length === 0 ? (
+            <div className="sec-head">
+              <span className="sec-title">{search ? `"${search}"` : cat === "all" ? t.around : CATS.find(c => c.id === cat)?.label}</span>
+              <span className="sec-count">{searchFiltered.length} {searchFiltered.length !== 1 ? t.events : t.event}</span>
+            </div>
+            {searchFiltered.length === 0 ? (
               <div className="empty">
                 <div className="empty-icon">🏔️</div>
                 <div className="empty-title">{t.nothingHere}</div>
                 <div className="empty-sub">{t.nothingHereSub}</div>
               </div>
             ) : (
-              <div className="cards">{filtered.map(e => <EventCard key={e.id} event={e} />)}</div>
+              <div className="cards">{searchFiltered.map(e => <EventCard key={e.id} event={e} />)}</div>
             )}
           </>
         )}
@@ -931,6 +1049,119 @@ export default function SwissOut() {
           </>
         )}
 
+        {/* PROFILE TAB */}
+        {tab === "profile" && !editingProfile && (
+          <div style={{ paddingBottom:130 }}>
+            <div style={{ padding:"40px 24px 24px", textAlign:"center" }}>
+              <div style={{ width:64, height:64, borderRadius:32, background:"var(--accent)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 12px", fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:28, color:"#fff" }}>
+                {userName[0]?.toUpperCase() || "?"}
+              </div>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:20, letterSpacing:"-0.3px" }}>{userName}</div>
+              <div style={{ fontSize:12, color:"var(--muted)", marginTop:3 }}>
+                {[age, gender === "homme" ? "Homme" : gender === "femme" ? "Femme" : ""].filter(Boolean).join(" · ")}
+              </div>
+              {phone && <div style={{ fontSize:12, color:"var(--faint)", marginTop:2 }}>{phone}</div>}
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, padding:"0 22px 20px" }}>
+              {[
+                { n: savedEvents.length, label: "Sauvegardés", key: "saved" },
+                { n: yesEvents.length,   label: "Confirmés",   key: "yes"   },
+                { n: maybeEvents.length, label: "Peut-être",   key: "maybe" },
+              ].map(s => (
+                <div key={s.key} onClick={() => setProfileSubTab(s.key)}
+                  style={{ textAlign:"center", padding:"14px 8px", borderRadius:14, cursor:"pointer", transition:"all 0.2s",
+                    background: profileSubTab === s.key ? "rgba(124,58,237,0.1)" : "var(--s1)",
+                    border: `1px solid ${profileSubTab === s.key ? "rgba(124,58,237,0.3)" : "var(--bd)"}` }}>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22, color: profileSubTab === s.key ? "var(--accent)" : "var(--txt)" }}>{s.n}</div>
+                  <div style={{ fontSize:10, color:"var(--faint)", marginTop:2, textTransform:"uppercase", letterSpacing:"0.5px" }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {(() => {
+              const evts = profileSubTab === "saved" ? savedEvents : profileSubTab === "yes" ? yesEvents : maybeEvents;
+              return evts.length === 0 ? (
+                <div className="empty">
+                  <div className="empty-icon">🌙</div>
+                  <div className="empty-title">{t.emptyList}</div>
+                  <div className="empty-sub">{t.emptyListSub}</div>
+                </div>
+              ) : (
+                <div className="cards">{evts.map(e => <EventCard key={e.id} event={e} />)}</div>
+              );
+            })()}
+
+            <div style={{ padding:"20px 22px 0", display:"flex", flexDirection:"column", gap:10 }}>
+              <button onClick={() => { setProfileDraft({ name: userName, phone, age, gender }); setEditingProfile(true); }}
+                style={{ width:"100%", padding:"13px", borderRadius:14, border:"1px solid var(--bd2)", background:"transparent", color:"var(--txt)", fontFamily:"'DM Sans',sans-serif", fontSize:14, fontWeight:600, cursor:"pointer" }}>
+                {t.editProfile}
+              </button>
+              {'Notification' in window && !notifGranted && (
+                <button onClick={() => Notification.requestPermission().then(p => { if (p === 'granted') setNotifGranted(true); })}
+                  style={{ width:"100%", padding:"13px", borderRadius:14, border:"1px solid rgba(124,58,237,0.3)", background:"rgba(124,58,237,0.08)", color:"var(--accent)", fontFamily:"'DM Sans',sans-serif", fontSize:14, fontWeight:600, cursor:"pointer" }}>
+                  {t.notifEnable}
+                </button>
+              )}
+              {notifGranted && (
+                <div style={{ textAlign:"center", fontSize:12, color:"var(--accent)", padding:"8px" }}>{t.notifActive}</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {tab === "profile" && editingProfile && (() => {
+          const inp = { width:"100%", padding:"11px 14px", borderRadius:12, background:"var(--s2)", border:"1px solid var(--bd)", fontFamily:"'DM Sans',sans-serif", fontSize:14, color:"var(--txt)", outline:"none" };
+          const lbl = { fontSize:10, fontWeight:700, letterSpacing:"0.8px", textTransform:"uppercase", color:"var(--faint)", display:"block", marginBottom:5, fontFamily:"'DM Sans',sans-serif" };
+          return (
+            <div style={{ padding:"40px 22px 130px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:28 }}>
+                <button onClick={() => setEditingProfile(false)}
+                  style={{ padding:"8px 14px", borderRadius:10, border:"1px solid var(--bd)", background:"transparent", color:"var(--muted)", fontSize:13, cursor:"pointer", fontFamily:"'DM Sans',sans-serif" }}>
+                  ← Retour
+                </button>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:18 }}>{t.editProfile}</div>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+                <div>
+                  <label style={lbl}>Prénom</label>
+                  <input style={inp} value={profileDraft.name ?? ""} onChange={e => setProfileDraft(d => ({...d, name: e.target.value}))} placeholder="Ton prénom" />
+                </div>
+                <div>
+                  <label style={lbl}>Téléphone</label>
+                  <input style={inp} type="tel" value={profileDraft.phone ?? ""} onChange={e => setProfileDraft(d => ({...d, phone: e.target.value}))} placeholder="+41 79 000 00 00" />
+                </div>
+                <div>
+                  <label style={lbl}>Âge</label>
+                  <div style={{ display:"flex", gap:8 }}>
+                    {["18-24","25-34","35-44","45+"].map(a => (
+                      <div key={a} onClick={() => setProfileDraft(d => ({...d, age: a}))}
+                        style={{ flex:1, padding:"10px 6px", borderRadius:12, border:`1px solid ${profileDraft.age===a?"var(--accent)":"var(--bd)"}`, background: profileDraft.age===a?"rgba(124,58,237,0.1)":"transparent", textAlign:"center", fontSize:12, fontWeight:700, cursor:"pointer", color: profileDraft.age===a?"var(--accent)":"var(--muted)", transition:"all 0.15s" }}>
+                        {a}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={lbl}>Genre</label>
+                  <div style={{ display:"flex", gap:8 }}>
+                    {[["homme","Homme"],["femme","Femme"]].map(([val, label]) => (
+                      <div key={val} onClick={() => setProfileDraft(d => ({...d, gender: val}))}
+                        style={{ flex:1, padding:"11px", borderRadius:12, border:`1px solid ${profileDraft.gender===val?"var(--accent)":"var(--bd)"}`, background: profileDraft.gender===val?"rgba(124,58,237,0.1)":"transparent", textAlign:"center", fontSize:13, fontWeight:700, cursor:"pointer", color: profileDraft.gender===val?"var(--accent)":"var(--muted)", transition:"all 0.15s" }}>
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <button onClick={saveProfile}
+                style={{ width:"100%", marginTop:24, padding:"15px", borderRadius:14, border:"none", background:"var(--accent)", color:"#fff", fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, cursor:"pointer" }}>
+                {t.saveProfile}
+              </button>
+            </div>
+          );
+        })()}
+
         {/* BOTTOM NAV */}
         <div className="bnav">
           <div className={`nav-it${tab === "explore" ? " active" : ""}`} onClick={() => setTab("explore")}>
@@ -941,6 +1172,12 @@ export default function SwissOut() {
             <span className="nav-icon">{tab === "saved" ? "♥" : "♡"}</span>
             {saved.length > 0 && <span className="nav-badge">{saved.length}</span>}
             <span className="nav-lbl">{t.saved.replace("♥ ","")}</span>
+          </div>
+          <div className={`nav-it${tab === "profile" ? " active" : ""}`} onClick={() => { setTab("profile"); setEditingProfile(false); }}>
+            <span className="nav-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={tab === "profile" ? "2.5" : "1.8"} strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            <span className="nav-lbl">{t.profile}</span>
           </div>
         </div>
 
@@ -1033,7 +1270,48 @@ export default function SwissOut() {
                 <button className="mbtn" style={{ background: selected.color }} onClick={() => toggleSave(selected.id)}>
                   {saved.includes(selected.id) ? t.removeSaved : t.addSaved}
                 </button>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button onClick={() => {
+                    navigator.clipboard.writeText(window.location.href).then(() => { setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); });
+                  }} style={{ flex:1, padding:"12px", borderRadius:14, border:"1px solid var(--bd2)", background:"transparent", color:"var(--txt)", fontFamily:"'DM Sans',sans-serif", fontSize:13, fontWeight:600, cursor:"pointer" }}>
+                    {shareCopied ? t.copied : t.copyLink}
+                  </button>
+                  <a href={`https://wa.me/?text=${encodeURIComponent(`${selected.title} — ${selected.date} à ${selected.location} · SwissOut`)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:"12px", borderRadius:14, border:"1px solid rgba(37,211,102,0.3)", background:"rgba(37,211,102,0.07)", color:"#25D366", fontFamily:"'DM Sans',sans-serif", fontSize:13, fontWeight:600, textDecoration:"none" }}>
+                    {t.whatsapp}
+                  </a>
+                </div>
                 <button className="mbtn-close" onClick={() => setSelected(null)}>{t.close}</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* SHARE SHEET */}
+        {shareEvent && (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)", backdropFilter:"blur(10px)", zIndex:250, display:"flex", alignItems:"flex-end" }}
+            onClick={() => setShareEvent(null)}>
+            <div style={{ width:"100%", maxWidth:430, margin:"0 auto", background:"var(--s1)", borderRadius:"24px 24px 0 0", padding:"20px 24px 48px", border:"1px solid var(--bd2)", borderBottom:"none" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ width:36, height:3, background:"var(--bd2)", borderRadius:2, margin:"0 auto 20px" }} />
+              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:16, marginBottom:3 }}>{shareEvent.title}</div>
+              <div style={{ fontSize:12, color:"var(--faint)", marginBottom:20 }}>{shareEvent.date} · {shareEvent.location}</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                <button onClick={() => {
+                  navigator.clipboard.writeText(window.location.href).then(() => { setShareCopied(true); setTimeout(() => { setShareCopied(false); setShareEvent(null); }, 1500); });
+                }} style={{ padding:"13px", borderRadius:14, border:"1px solid var(--bd2)", background:"transparent", color:"var(--txt)", fontFamily:"'DM Sans',sans-serif", fontSize:14, fontWeight:600, cursor:"pointer" }}>
+                  {shareCopied ? `✓ ${t.copied}` : t.copyLink}
+                </button>
+                <a href={`https://wa.me/?text=${encodeURIComponent(`${shareEvent.title} — ${shareEvent.date} à ${shareEvent.location} · SwissOut`)}`}
+                  target="_blank" rel="noopener noreferrer"
+                  onClick={() => setShareEvent(null)}
+                  style={{ display:"block", padding:"13px", borderRadius:14, border:"1px solid rgba(37,211,102,0.3)", background:"rgba(37,211,102,0.07)", color:"#25D366", fontFamily:"'DM Sans',sans-serif", fontSize:14, fontWeight:600, textAlign:"center", textDecoration:"none" }}>
+                  {t.whatsapp}
+                </a>
+                <button onClick={() => setShareEvent(null)}
+                  style={{ padding:"13px", borderRadius:14, border:"1px solid var(--bd2)", background:"transparent", color:"var(--faint)", fontFamily:"'DM Sans',sans-serif", fontSize:14, cursor:"pointer" }}>
+                  Annuler
+                </button>
               </div>
             </div>
           </div>
